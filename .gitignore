@@ -1,0 +1,17 @@
+# Byte-compiled / Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+env/
+venv/
+.idea/
+.vscode/
+
+# Exclude Raw Data Files (only Master Datasets are pushed)
+raw_commodity_macro.csv
+freight_rates.csv
+Port_data.xlsx
+ML_Ready_Dataset.xlsx
+CMO-April-2026-Forecasts.xlsx
+raw_freight_routes.csv
