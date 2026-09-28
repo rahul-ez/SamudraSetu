@@ -58,6 +58,43 @@ async def model_status(request: Request) -> dict[str, Any]:
     return _registry(request).status()
 
 
+@app.get("/api/v1/pipeline/config")
+async def pipeline_config(request: Request) -> dict[str, Any]:
+    """Return backend-owned UI choices limited to loaded trained models."""
+
+    registry = _registry(request)
+    scenarios = registry.supported_freight_scenarios()
+    request_schema = PipelineRequest.model_json_schema()["properties"]
+    default_requirement = None
+    if scenarios:
+        first = scenarios[0]
+        default_requirement = PipelineRequest(
+            origin=first["origin"],
+            destination=first["destination"],
+            vessel_class=first["vessel_class"],
+            cargo_type=first["cargo_type"],
+            horizon_days=first["horizons_days"][0],
+        ).model_dump()
+
+    return {
+        "service_status": "ready" if scenarios else "unavailable",
+        "default_requirement": default_requirement,
+        "supported_scenarios": scenarios,
+        "input_constraints": {
+            "cargo_quantity_mt": {
+                "exclusive_minimum": request_schema["cargo_quantity_mt"][
+                    "exclusiveMinimum"
+                ],
+                "maximum": request_schema["cargo_quantity_mt"]["maximum"],
+                "step": 1000,
+            },
+            "congestion_levels": request_schema["congestion_level"]["enum"],
+            "availability_levels": request_schema["availability_level"]["enum"],
+        },
+        "models": registry.status(),
+    }
+
+
 @app.post("/api/v1/predict/freight")
 async def predict_freight(
     payload: PipelineRequest, request: Request
@@ -81,4 +118,3 @@ async def predict_freight(
 @app.post("/api/v1/pipeline/run")
 async def pipeline(payload: PipelineRequest, request: Request) -> dict[str, Any]:
     return run_pipeline(payload, _registry(request))
-

@@ -426,7 +426,7 @@ svg {
 
 .segmented-control {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(var(--segment-count, 1), minmax(0, 1fr));
   border: 1px solid var(--line);
   border-radius: 8px;
   overflow: hidden;
@@ -462,6 +462,27 @@ svg {
   background: #f6e7e2;
   font-size: 0.8rem;
   line-height: 1.45;
+}
+
+.form-provenance {
+  margin-top: 18px;
+  color: #777970;
+  font-size: 0.7rem;
+  line-height: 1.45;
+}
+
+.config-loading {
+  min-height: 220px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+}
+
+.config-loading p {
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 0.8rem;
 }
 
 .primary-button--submit {

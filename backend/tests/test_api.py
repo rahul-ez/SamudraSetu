@@ -24,6 +24,22 @@ def test_health_and_model_status() -> None:
     assert status["xgboost_port_risk"]["loaded"] is True
 
 
+def test_pipeline_config_is_backend_owned_and_trained_only() -> None:
+    with TestClient(app) as client:
+        response = client.get("/api/v1/pipeline/config")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["service_status"] == "ready"
+    assert payload["default_requirement"]["origin"] == "Australia"
+    assert payload["supported_scenarios"]
+    assert all(
+        scenario["model_kind"] == "trained_artifact"
+        for scenario in payload["supported_scenarios"]
+    )
+    assert payload["input_constraints"]["cargo_quantity_mt"]["maximum"] == 250000
+
+
 def test_pipeline_connects_ui_contract_to_trained_models() -> None:
     with TestClient(app) as client:
         response = client.post("/api/v1/pipeline/run", json=CAPESIZE_REQUEST)
@@ -34,6 +50,11 @@ def test_pipeline_connects_ui_contract_to_trained_models() -> None:
     assert payload["forecast"]["model"]["name"] == "PyTorch 2-layer LSTM"
     assert payload["risk"]["source"] == "trained XGBoost congestion model"
     assert payload["recommendation"]["reasons"]
+    assert len(payload["recommendation"]["cost_options"]) == 3
+    assert sum(
+        option["is_lowest_modeled_cost"]
+        for option in payload["recommendation"]["cost_options"]
+    ) == 1
 
 
 def test_pipeline_labels_statistical_fallback() -> None:
@@ -46,4 +67,3 @@ def test_pipeline_labels_statistical_fallback() -> None:
     assert model["kind"] == "statistical_fallback"
     assert model["fallback_used"] is True
     assert model["fallback_reason"]
-

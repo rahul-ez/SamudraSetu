@@ -163,6 +163,35 @@ class ModelRegistry:
             },
         }
 
+    def supported_freight_scenarios(self) -> list[dict[str, Any]]:
+        """Return only scopes currently backed by loaded trained artifacts."""
+
+        scenarios: list[dict[str, Any]] = []
+        if self.lstm_model is not None:
+            scenarios.append(
+                {
+                    **self.LSTM_SCOPE,
+                    "cargo_type": "Coal",
+                    "horizons_days": list(self.LSTM_HORIZONS),
+                    "model": "PyTorch 2-layer LSTM",
+                    "model_kind": "trained_artifact",
+                }
+            )
+        if "freight" in self.xgb_models:
+            scope = self.XGB_FREIGHT_SCOPE
+            scenarios.append(
+                {
+                    "origin": scope["origin"],
+                    "destination": scope["destination"],
+                    "vessel_class": scope["vessel_class"],
+                    "cargo_type": "Coal",
+                    "horizons_days": [scope["horizon_days"]],
+                    "model": "XGBoost freight regressor",
+                    "model_kind": "trained_artifact",
+                }
+            )
+        return scenarios
+
     @staticmethod
     def _date_string(frame: pd.DataFrame | None) -> str | None:
         if frame is None or frame.empty:
@@ -252,10 +281,15 @@ class ModelRegistry:
                 "fallback_used": False,
                 "fallback_reason": None,
                 "data_cutoff": self._date_string(self.macro_data),
+                "data_provenance": (
+                    "Committed model dataset with a proxy/simulated freight target; "
+                    "not a live market quote."
+                ),
                 "interval_method": "holdout RMSE normal approximation (uncalibrated)",
                 "interval_calibrated": False,
                 "known_limitations": [
                     "The committed LSTM targets only Australia-Paradip Capesize freight.",
+                    "The committed freight target is a proxy/simulated series rather than a live market quote.",
                     "Its preprocessing fitted StandardScaler on the full series and used backfill; retraining with train-only scaling and strict point-in-time handling is required before production use.",
                     "Published test metrics were observed during training and are not an untouched final holdout.",
                 ],
@@ -316,6 +350,9 @@ class ModelRegistry:
                 "fallback_used": False,
                 "fallback_reason": None,
                 "data_cutoff": self._date_string(self.xgb_data),
+                "data_provenance": (
+                    "Committed proxy/simulated model dataset; not a live market quote."
+                ),
                 "interval_method": "holdout RMSE normal approximation (uncalibrated)",
                 "interval_calibrated": False,
                 "known_limitations": [

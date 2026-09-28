@@ -33,10 +33,14 @@ clones were moved to the recoverable sibling directory
 |---|---|
 | `GET /health` | FastAPI process health |
 | `GET /api/v1/models/status` | Loaded-artifact status, exact scopes, cutoffs |
+| `GET /api/v1/pipeline/config` | Backend-owned UI defaults, constraints, and trained-artifact scenarios |
 | `POST /api/v1/predict/freight` | Scope-aware LSTM/XGBoost freight inference; no implicit fallback |
 | `POST /api/v1/pipeline/run` | Forecast → feasibility → risk → recommendation → decision-rule backtest |
 
-The React client calls `POST /api/v1/pipeline/run` through `frontend/src/api.js`.
+The React client loads `GET /api/v1/pipeline/config` and calls
+`POST /api/v1/pipeline/run` through `frontend/src/api.js`. The browser exposes
+only scenarios reported by loaded trained artifacts; it does not synthesize
+form options, result values, or missing numeric fields.
 Vite proxies `/api` to `http://127.0.0.1:8000` in development. A separately
 hosted frontend can set `VITE_API_BASE_URL`.
 
@@ -44,8 +48,7 @@ hosted frontend can set `VITE_API_BASE_URL`.
 
 - Australia → Paradip, Capesize, 7/14/30/60 days: committed PyTorch LSTM.
 - Australia → Paradip, Supramax, 1 day: committed XGBoost freight regressor
-  (available through the direct prediction endpoint; the browser offers the
-  product horizons 7/14/30/60).
+  (available through both the direct prediction endpoint and the browser).
 - Paradip port risk: committed XGBoost congestion and wait-time regressors.
 - All other freight combinations: Repo A's Holt exponential-smoothing model,
   explicitly labeled `statistical_fallback` with its data source.

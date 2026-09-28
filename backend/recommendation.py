@@ -107,10 +107,32 @@ def build_recommendation(forecast: dict, risk: dict, vessel_class: str, dwt_max:
     decision, reasons = score_decision(forecast, risk)
     costs = cost_comparison(forecast, vessel_class, dwt_max, cargo_quantity_mt)
 
+    cost_options = [
+        {
+            "id": "spot_market",
+            "name": "Spot market",
+            "rate_usd_per_mt": costs["avg_spot_rate"],
+            "total_cost_usd": costs["spot_cost_usd"],
+        },
+        {
+            "id": "short_term_multi_voyage",
+            "name": f"Short-term multi-voyage ({costs['multi_voyage_count']} voyages)",
+            "rate_usd_per_mt": costs["multi_voyage_rate"],
+            "total_cost_usd": costs["multi_voyage_cost_usd"],
+        },
+        {
+            "id": "medium_term_fixed",
+            "name": "Medium-term (single fixed contract)",
+            "rate_usd_per_mt": costs["contract_rate"],
+            "total_cost_usd": costs["contract_cost_usd"],
+        },
+    ]
+    lowest_cost = min(option["total_cost_usd"] for option in cost_options)
+    for option in cost_options:
+        option["is_lowest_modeled_cost"] = option["total_cost_usd"] == lowest_cost
+
     strategy_costs = {
-        "Spot market": costs["spot_cost_usd"],
-        f"Short-term multi-voyage ({costs['multi_voyage_count']} voyages)": costs["multi_voyage_cost_usd"],
-        "Medium-term (single fixed contract)": costs["contract_cost_usd"],
+        option["name"]: option["total_cost_usd"] for option in cost_options
     }
     strategy = min(strategy_costs, key=strategy_costs.get)
 
@@ -121,6 +143,7 @@ def build_recommendation(forecast: dict, risk: dict, vessel_class: str, dwt_max:
         "risk_level": risk["level"],
         "contract_strategy": strategy,
         "costs": costs,
+        "cost_options": cost_options,
     }
 
 

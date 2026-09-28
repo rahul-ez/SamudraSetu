@@ -79,6 +79,9 @@ def _baseline_forecast(
             ),
             "data_cutoff": pd.Timestamp(series.index[-1]).date().isoformat(),
             "data_source": data_source,
+            "data_provenance": (
+                f"Backend demonstration series from {data_source}; not a live market quote."
+            ),
             "interval_method": "holdout residual spread with sqrt(time) widening",
             "interval_calibrated": False,
             "known_limitations": [

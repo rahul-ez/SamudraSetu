@@ -1,14 +1,19 @@
 import { useState } from 'react';
 import ForecastChart from './ForecastChart';
 
-const money = (value, digits = 2) => Number(value ?? 0).toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits });
-const cost = (value) => Number(value ?? 0).toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
+const decimal = (value, digits = 2) => value == null
+  ? 'Unavailable'
+  : Number(value).toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits });
+const usdRate = (value) => value == null ? 'Unavailable' : `$${decimal(value)}`;
+const cost = (value) => value == null
+  ? 'Unavailable'
+  : Number(value).toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
 const cleanReason = (reason) => reason.replaceAll('\\$', '$');
 
 function backtestOutcome(value) {
   if (value == null) return 'No backtested cost estimate';
-  if (value >= 0) return `$${money(value)}/mt backtested estimated savings`;
-  return `$${money(Math.abs(value))}/mt backtested estimated additional cost`;
+  if (value >= 0) return `${usdRate(value)}/mt backtested estimated savings`;
+  return `${usdRate(Math.abs(value))}/mt backtested estimated additional cost`;
 }
 
 function RationaleCarousel({ reasons = [] }) {
@@ -43,19 +48,14 @@ function LoadingState() {
   );
 }
 
-export default function DecisionWorkspace({ result, requirement, loading, error }) {
+export default function DecisionWorkspace({ result, loading, error }) {
   const forecast = result?.forecast;
   const recommendation = result?.recommendation;
   const feasibility = result?.feasibility;
   const risk = result?.risk;
   const backtest = result?.backtest;
-  const costs = recommendation?.costs;
-  const strategies = costs ? [
-    { name: 'Spot market', rate: costs.avg_spot_rate, total: costs.spot_cost_usd },
-    { name: 'Short-term multi-voyage', rate: costs.multi_voyage_rate, total: costs.multi_voyage_cost_usd },
-    { name: 'Medium-term fixed', rate: costs.contract_rate, total: costs.contract_cost_usd },
-  ] : [];
-  const cheapest = strategies.length ? Math.min(...strategies.map((item) => item.total)) : null;
+  const request = result?.request;
+  const strategies = recommendation?.cost_options ?? [];
   const riskPercent = risk ? (risk.total_score / risk.max_score) * 100 : 0;
 
   return (
@@ -65,7 +65,7 @@ export default function DecisionWorkspace({ result, requirement, loading, error 
           <p className="eyebrow">Decision workspace</p>
           <h2 id="workspace-title">One scenario, read from market signal to action.</h2>
         </div>
-        <p>{requirement.origin} to {requirement.destination} · {requirement.vessel_class} · {Number(requirement.cargo_quantity_mt).toLocaleString('en-US')} mt</p>
+        {request && <p>{request.origin} to {request.destination} · {request.vessel_class} · {Number(request.cargo_quantity_mt).toLocaleString('en-US')} mt</p>}
       </header>
 
       {loading && !result && <LoadingState />}
@@ -82,18 +82,18 @@ export default function DecisionWorkspace({ result, requirement, loading, error 
             </div>
             <div className="forecast-summary">
               <div>
-                <strong>${money(forecast.p50_usd_per_mt)}</strong><span>per mt at day {forecast.horizon_days}</span>
+                <strong>{usdRate(forecast.p50_usd_per_mt)}</strong><span>per mt at day {forecast.horizon_days}</span>
               </div>
               <div className={forecast.expected_pct_change >= 0 ? 'change-up' : 'change-down'}>
                 {forecast.expected_pct_change >= 0 ? '+' : ''}{forecast.expected_pct_change.toFixed(1)}%
-                <span>from ${money(forecast.current_rate_usd_per_mt)}</span>
+                <span>from {usdRate(forecast.current_rate_usd_per_mt)}</span>
               </div>
             </div>
             <ForecastChart forecast={forecast} />
             <div className="forecast-bounds">
-              <span><i>Low case</i><strong>${money(forecast.p10_usd_per_mt)}</strong></span>
+              <span><i>Low case</i><strong>{usdRate(forecast.p10_usd_per_mt)}</strong></span>
               <span><i>Probability of increase</i><strong>{(forecast.probability_increase * 100).toFixed(0)}%</strong></span>
-              <span><i>High case</i><strong>${money(forecast.p90_usd_per_mt)}</strong></span>
+              <span><i>High case</i><strong>{usdRate(forecast.p90_usd_per_mt)}</strong></span>
             </div>
           </article>
 
@@ -136,9 +136,9 @@ export default function DecisionWorkspace({ result, requirement, loading, error 
             <div className="card-heading"><div><p className="card-kicker">Contract economics</p><h3>Comparable options</h3></div></div>
             <div className="strategy-list">
               {strategies.map((strategy) => (
-                <div className={strategy.total === cheapest ? 'is-cheapest' : ''} key={strategy.name}>
-                  <span><strong>{strategy.name}</strong>{strategy.total === cheapest && <i>Lowest modeled cost</i>}</span>
-                  <span><i>${money(strategy.rate)}/mt</i><strong>{cost(strategy.total)}</strong></span>
+                <div className={strategy.is_lowest_modeled_cost ? 'is-cheapest' : ''} key={strategy.id}>
+                  <span><strong>{strategy.name}</strong>{strategy.is_lowest_modeled_cost && <i>Lowest modeled cost</i>}</span>
+                  <span><i>{usdRate(strategy.rate_usd_per_mt)}/mt</i><strong>{cost(strategy.total_cost_usd)}</strong></span>
                 </div>
               ))}
             </div>

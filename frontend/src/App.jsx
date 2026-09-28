@@ -6,20 +6,9 @@ import Navigation from './components/Navigation';
 import RequirementForm from './components/RequirementForm';
 import DecisionWorkspace from './components/DecisionWorkspace';
 import EvidenceSection from './components/EvidenceSection';
-import { runPipeline } from './api';
+import { getPipelineConfig, runPipeline } from './api';
 
 gsap.registerPlugin(useGSAP, ScrollTrigger);
-
-const DEFAULT_REQUIREMENT = {
-  origin: 'Australia',
-  destination: 'Paradip',
-  vessel_class: 'Capesize',
-  cargo_type: 'Coal',
-  cargo_quantity_mt: 150000,
-  horizon_days: 7,
-  congestion_level: 'Medium',
-  availability_level: 'Medium',
-};
 
 function ArrowIcon() {
   return <svg aria-hidden="true" viewBox="0 0 20 20"><path d="M4 10h11M11 5l5 5-5 5" /></svg>;
@@ -27,7 +16,8 @@ function ArrowIcon() {
 
 export default function App() {
   const pageRef = useRef(null);
-  const [requirement, setRequirement] = useState(DEFAULT_REQUIREMENT);
+  const [config, setConfig] = useState(null);
+  const [requirement, setRequirement] = useState(null);
   const [result, setResult] = useState(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
@@ -47,7 +37,19 @@ export default function App() {
 
   useEffect(() => {
     let active = true;
-    runPipeline(DEFAULT_REQUIREMENT)
+    let initialRequirement;
+    getPipelineConfig()
+      .then((backendConfig) => {
+        if (!backendConfig.default_requirement) {
+          throw new Error('The backend has no loaded trained freight scenario.');
+        }
+        initialRequirement = backendConfig.default_requirement;
+        if (active) {
+          setConfig(backendConfig);
+          setRequirement(initialRequirement);
+        }
+        return runPipeline(initialRequirement);
+      })
       .then((initialResult) => {
         if (active) setResult(initialResult);
       })
@@ -115,6 +117,14 @@ export default function App() {
   }, { scope: pageRef, dependencies: [result], revertOnUpdate: true });
 
   const scrollToBrief = () => document.querySelector('#brief')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  const capabilities = config
+    ? [
+      ...config.supported_scenarios.map((scenario) => `${scenario.model}: ${scenario.origin} to ${scenario.destination}, ${scenario.vessel_class}, ${scenario.horizons_days.join('/')} day`),
+      ...Object.entries(config.models)
+        .filter(([name, model]) => name.includes('port_risk') && model.loaded)
+        .map(([, model]) => `Port risk model: ${model.scope.destination}`),
+    ]
+    : [];
 
   return (
     <div ref={pageRef} className="site-shell">
@@ -132,24 +142,28 @@ export default function App() {
             </button>
           </div>
           <div className="hero__brief" id="brief" data-hero-reveal>
-            <RequirementForm requirement={requirement} loading={loading} error={error} onRun={executePipeline} />
+            {config && requirement ? (
+              <RequirementForm config={config} requirement={requirement} loading={loading} error={error} onRun={executePipeline} />
+            ) : (
+              <div className="brief-card config-loading" role="status">
+                <span className="loading-mark" aria-hidden="true" />
+                <div><strong>Connecting to the backend</strong><p>{error || 'Loading supported trained-model scenarios.'}</p></div>
+              </div>
+            )}
           </div>
         </section>
 
-        <div className="marquee" aria-label="Pipeline capabilities">
+        {capabilities.length > 0 && <div className="marquee" aria-label="Backend model capabilities">
           <div className="marquee__track">
             {[0, 1].map((copy) => (
               <div className="marquee__set" aria-hidden={copy === 1} key={copy}>
-                <span>Probabilistic freight forecast</span>
-                <span>Port constraint validation</span>
-                <span>Risk-weighted recommendation</span>
-                <span>Walk-forward evidence</span>
+                {capabilities.map((capability) => <span key={capability}>{capability}</span>)}
               </div>
             ))}
           </div>
-        </div>
+        </div>}
 
-        <DecisionWorkspace result={result} requirement={requirement} loading={loading} error={error} />
+        <DecisionWorkspace result={result} loading={loading} error={error} />
         <EvidenceSection result={result} />
 
         <section className="closing page-frame" id="decision" data-enter>

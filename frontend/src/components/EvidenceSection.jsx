@@ -1,11 +1,14 @@
 import { useState } from 'react';
 
-const number = (value) => Number(value ?? 0).toLocaleString('en-US', { maximumFractionDigits: 2 });
+const number = (value) => value == null
+  ? 'Unavailable'
+  : Number(value).toLocaleString('en-US', { maximumFractionDigits: 2 });
+const usdRate = (value) => value == null ? 'Unavailable' : `$${number(value)}`;
 
 function backtestHeadline(value) {
   if (value == null) return 'No savings estimate available.';
-  if (value >= 0) return `$${number(value)}/mt estimated savings.`;
-  return `$${number(Math.abs(value))}/mt estimated additional cost.`;
+  if (value >= 0) return `${usdRate(value)}/mt estimated savings.`;
+  return `${usdRate(Math.abs(value))}/mt estimated additional cost.`;
 }
 
 function ScopeList({ scope }) {
@@ -82,13 +85,14 @@ export default function EvidenceSection({ result }) {
             <div><dt>Execution</dt><dd>{model.kind.replaceAll('_', ' ')}</dd></div>
             <div><dt>Data cutoff</dt><dd>{model.data_cutoff}</dd></div>
             <div><dt>Artifact</dt><dd>{model.artifact || 'Statistical baseline, no binary artifact'}</dd></div>
+            <div><dt>Data provenance</dt><dd>{model.data_provenance}</dd></div>
           </dl>
         </article>
 
         <article className="evidence-block evidence-block--sand">
           <p className="card-kicker" data-reveal-line>Uncertainty</p>
           <h3 data-reveal-line>Range first, point estimate second.</h3>
-          <p data-reveal-line>The day {forecast.horizon_days} median is ${number(forecast.p50_usd_per_mt)}/mt, bounded by an indicative P10–P90 range of ${number(forecast.p10_usd_per_mt)} to ${number(forecast.p90_usd_per_mt)}.</p>
+          <p data-reveal-line>The day {forecast.horizon_days} median is {usdRate(forecast.p50_usd_per_mt)}/mt, bounded by an indicative P10–P90 range of {usdRate(forecast.p10_usd_per_mt)} to {usdRate(forecast.p90_usd_per_mt)}.</p>
           <p className="evidence-callout" data-reveal-line>{model.interval_method}. {model.interval_calibrated ? 'The interval is calibrated.' : 'The interval is not calibrated and should be treated as indicative.'}</p>
         </article>
 
@@ -106,7 +110,7 @@ export default function EvidenceSection({ result }) {
         {portPrediction && (
           <article className="evidence-block evidence-block--blue">
             <p className="card-kicker" data-reveal-line>Port signal</p>
-            <h3 data-reveal-line>Paradip congestion is model-backed.</h3>
+            <h3 data-reveal-line>{portPrediction.scope.destination} congestion is model-backed.</h3>
             <p data-reveal-line>The trained port regressors estimate a congestion index of {number(portPrediction.congestion_index_0_100)}/100 and a vessel wait of {number(portPrediction.wait_hours)} hours for the current feature row.</p>
             <p className="evidence-callout" data-reveal-line>Post-processing: {portPrediction.postprocessing}</p>
           </article>

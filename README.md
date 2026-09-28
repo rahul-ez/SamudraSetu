@@ -53,6 +53,13 @@ npm run dev
 Open `http://localhost:5173`. API documentation is at
 `http://localhost:8000/docs`.
 
+The browser first loads `GET /api/v1/pipeline/config`. Form defaults, input
+constraints, and available route/vessel/horizon choices come from that response
+and are limited to scopes backed by loaded trained artifacts. Forecast values,
+charts, recommendations, risk, feasibility, costs, and evidence are rendered
+from `POST /api/v1/pipeline/run`; the frontend does not substitute sample
+numbers for missing fields.
+
 For the optional Streamlit UI:
 
 ```powershell
@@ -77,6 +84,8 @@ The committed model repository contains useful trained demonstration artifacts,
 but its LSTM preprocessing is not fully point-in-time safe (full-series scaling
 and backfill). The API and UI disclose this limitation. Retrain through a
 leakage-safe feature pipeline before treating results as production forecasts.
+The committed freight targets are proxy/simulated rather than live market
+quotes, so "backend-sourced" must not be interpreted as live real-world data.
 
 ## Preserved source history
 
