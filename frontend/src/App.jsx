@@ -1,15 +1,14 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
-import { AnimatePresence, motion } from 'framer-motion';
-import Navbar from './components/Navbar';
-import OceanWaves from './components/OceanWaves';
-import SectionHero from './components/SectionHero';
-import SectionForecast from './components/SectionForecast';
-import SectionFeasibility from './components/SectionFeasibility';
-import SectionStrategy from './components/SectionStrategy';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import gsap from 'gsap';
+import { ScrollTrigger } from 'gsap/ScrollTrigger';
+import { useGSAP } from '@gsap/react';
+import Navigation from './components/Navigation';
+import RequirementForm from './components/RequirementForm';
+import DecisionWorkspace from './components/DecisionWorkspace';
+import EvidenceSection from './components/EvidenceSection';
 import { runPipeline } from './api';
 
-const SECTIONS = [SectionHero, SectionForecast, SectionFeasibility, SectionStrategy];
-const SECTION_COUNT = SECTIONS.length;
+gsap.registerPlugin(useGSAP, ScrollTrigger);
 
 const DEFAULT_REQUIREMENT = {
   origin: 'Australia',
@@ -22,216 +21,156 @@ const DEFAULT_REQUIREMENT = {
   availability_level: 'Medium',
 };
 
-/* Slide animation variants */
-const slideVariants = {
-  enter: (direction) => ({
-    y: direction > 0 ? '100%' : '-100%',
-    opacity: 0,
-  }),
-  center: {
-    y: 0,
-    opacity: 1,
-  },
-  exit: (direction) => ({
-    y: direction > 0 ? '-100%' : '100%',
-    opacity: 0,
-  }),
-};
+function ArrowIcon() {
+  return <svg aria-hidden="true" viewBox="0 0 20 20"><path d="M4 10h11M11 5l5 5-5 5" /></svg>;
+}
 
 export default function App() {
-  const [activeSection, setActiveSection] = useState(0);
-  const [direction, setDirection] = useState(1);
-  const isTransitioning = useRef(false);
-  const touchStartY = useRef(null);
+  const pageRef = useRef(null);
   const [requirement, setRequirement] = useState(DEFAULT_REQUIREMENT);
-  const [pipelineResult, setPipelineResult] = useState(null);
-  const [pipelineError, setPipelineError] = useState('');
-  const [pipelineLoading, setPipelineLoading] = useState(false);
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(true);
 
-  const executePipeline = useCallback(async (nextRequirement, openForecast = true) => {
+  const executePipeline = useCallback(async (nextRequirement) => {
     setRequirement(nextRequirement);
-    setPipelineLoading(true);
-    setPipelineError('');
+    setLoading(true);
+    setError('');
     try {
-      const result = await runPipeline(nextRequirement);
-      setPipelineResult(result);
-      if (openForecast) {
-        setDirection(1);
-        setActiveSection(1);
-      }
-    } catch (error) {
-      setPipelineError(error instanceof Error ? error.message : 'Pipeline request failed.');
+      setResult(await runPipeline(nextRequirement));
+    } catch (pipelineError) {
+      setError(pipelineError instanceof Error ? pipelineError.message : 'The pipeline could not complete this request.');
     } finally {
-      setPipelineLoading(false);
+      setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    executePipeline(DEFAULT_REQUIREMENT, false);
-  }, [executePipeline]);
+    let active = true;
+    runPipeline(DEFAULT_REQUIREMENT)
+      .then((initialResult) => {
+        if (active) setResult(initialResult);
+      })
+      .catch((pipelineError) => {
+        if (active) setError(pipelineError instanceof Error ? pipelineError.message : 'The pipeline could not complete this request.');
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => { active = false; };
+  }, []);
 
-  const navigate = useCallback(
-    (toIndex) => {
-      if (
-        isTransitioning.current ||
-        toIndex === activeSection ||
-        toIndex < 0 ||
-        toIndex >= SECTION_COUNT
-      )
-        return;
+  useGSAP(() => {
+    const media = gsap.matchMedia();
+    media.add({ allowMotion: '(prefers-reduced-motion: no-preference)' }, (context) => {
+      if (!context.conditions.allowMotion) return;
 
-      isTransitioning.current = true;
-      setDirection(toIndex > activeSection ? 1 : -1);
-      setActiveSection(toIndex);
+      gsap.from('[data-hero-reveal]', {
+        y: 28,
+        opacity: 0,
+        duration: 0.8,
+        stagger: 0.09,
+        ease: 'power3.out',
+      });
+    });
+    return () => media.revert();
+  }, { scope: pageRef });
 
-      // Unlock after animation completes
-      setTimeout(() => {
-        isTransitioning.current = false;
-      }, 800);
-    },
-    [activeSection]
-  );
+  useGSAP(() => {
+    if (!result) return undefined;
+    const media = gsap.matchMedia();
+    media.add({ allowMotion: '(prefers-reduced-motion: no-preference)', desktop: '(min-width: 960px)' }, (context) => {
+      if (!context.conditions.allowMotion) return;
 
-  /* ── Scroll-jacking (wheel) ──────────────────────────────── */
-  useEffect(() => {
-    const handleWheel = (e) => {
-      e.preventDefault();
-      if (isTransitioning.current) return;
+      gsap.utils.toArray('[data-enter]').forEach((element) => {
+        gsap.from(element, {
+          y: 28,
+          opacity: 0,
+          duration: 0.65,
+          ease: 'power2.out',
+          scrollTrigger: { trigger: element, start: 'top 88%', once: true },
+        });
+      });
 
-      if (e.deltaY > 30) {
-        navigate(activeSection + 1);
-      } else if (e.deltaY < -30) {
-        navigate(activeSection - 1);
+      gsap.utils.toArray('[data-reveal-line]').forEach((line) => {
+        gsap.fromTo(line, { opacity: 0.18, y: 14 }, {
+          opacity: 1,
+          y: 0,
+          ease: 'none',
+          scrollTrigger: { trigger: line, start: 'top 84%', end: 'top 58%', scrub: 0.5 },
+        });
+      });
+
+      if (context.conditions.desktop) {
+        ScrollTrigger.create({
+          trigger: '.evidence',
+          start: 'top 112px',
+          end: 'bottom bottom-=80',
+          pin: '.evidence__rail',
+          pinSpacing: false,
+        });
       }
-    };
+    });
+    return () => media.revert();
+  }, { scope: pageRef, dependencies: [result], revertOnUpdate: true });
 
-    window.addEventListener('wheel', handleWheel, { passive: false });
-    return () => window.removeEventListener('wheel', handleWheel);
-  }, [activeSection, navigate]);
-
-  /* ── Touch support ───────────────────────────────────────── */
-  useEffect(() => {
-    const handleTouchStart = (e) => {
-      touchStartY.current = e.touches[0].clientY;
-    };
-
-    const handleTouchEnd = (e) => {
-      if (touchStartY.current === null || isTransitioning.current) return;
-      const diff = touchStartY.current - e.changedTouches[0].clientY;
-      if (Math.abs(diff) > 50) {
-        navigate(activeSection + (diff > 0 ? 1 : -1));
-      }
-      touchStartY.current = null;
-    };
-
-    window.addEventListener('touchstart', handleTouchStart, { passive: true });
-    window.addEventListener('touchend', handleTouchEnd, { passive: true });
-    return () => {
-      window.removeEventListener('touchstart', handleTouchStart);
-      window.removeEventListener('touchend', handleTouchEnd);
-    };
-  }, [activeSection, navigate]);
-
-  /* ── Keyboard support ────────────────────────────────────── */
-  useEffect(() => {
-    const handleKey = (e) => {
-      if (e.key === 'ArrowDown' || e.key === 'PageDown') {
-        e.preventDefault();
-        navigate(activeSection + 1);
-      } else if (e.key === 'ArrowUp' || e.key === 'PageUp') {
-        e.preventDefault();
-        navigate(activeSection - 1);
-      }
-    };
-    window.addEventListener('keydown', handleKey);
-    return () => window.removeEventListener('keydown', handleKey);
-  }, [activeSection, navigate]);
-
-  const ActiveComponent = SECTIONS[activeSection];
+  const scrollToBrief = () => document.querySelector('#brief')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
   return (
-    <div className="relative w-full h-screen overflow-hidden">
-      {/* ── Navbar ─────────────────────────────────────────── */}
-      <Navbar activeSection={activeSection} onNavigate={navigate} />
+    <div ref={pageRef} className="site-shell">
+      <Navigation onRunClick={scrollToBrief} loading={loading} />
+      <main>
+        <section className="hero page-frame" aria-labelledby="hero-title">
+          <div className="hero__copy">
+            <p className="eyebrow" data-hero-reveal>Freight intelligence for bulk procurement</p>
+            <h1 id="hero-title" data-hero-reveal>Plan chartering with the market in view.</h1>
+            <p className="hero__lede" data-hero-reveal>
+              Turn a route requirement into a probabilistic freight outlook, port feasibility check, and an explainable contract decision.
+            </p>
+            <button className="text-link" type="button" onClick={() => document.querySelector('#forecast')?.scrollIntoView({ behavior: 'smooth' })} data-hero-reveal>
+              Review the decision workspace <ArrowIcon />
+            </button>
+          </div>
+          <div className="hero__brief" id="brief" data-hero-reveal>
+            <RequirementForm requirement={requirement} loading={loading} error={error} onRun={executePipeline} />
+          </div>
+        </section>
 
-      {/* ── Ocean Waves Background ─────────────────────────── */}
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={`waves-${activeSection}`}
-          className="absolute inset-0"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.6 }}
-        >
-          <OceanWaves sectionIndex={activeSection} />
-        </motion.div>
-      </AnimatePresence>
+        <div className="marquee" aria-label="Pipeline capabilities">
+          <div className="marquee__track">
+            {[0, 1].map((copy) => (
+              <div className="marquee__set" aria-hidden={copy === 1} key={copy}>
+                <span>Probabilistic freight forecast</span>
+                <span>Port constraint validation</span>
+                <span>Risk-weighted recommendation</span>
+                <span>Walk-forward evidence</span>
+              </div>
+            ))}
+          </div>
+        </div>
 
-      {/* ── Section Content ────────────────────────────────── */}
-      <AnimatePresence mode="wait" custom={direction}>
-        <motion.section
-          key={activeSection}
-          custom={direction}
-          variants={slideVariants}
-          initial="enter"
-          animate="center"
-          exit="exit"
-          transition={{
-            duration: 0.7,
-            ease: [0.22, 1, 0.36, 1],
-          }}
-          className="absolute inset-0 flex items-center pt-16"
-        >
-          <ActiveComponent
-            requirement={requirement}
-            result={pipelineResult}
-            loading={pipelineLoading}
-            error={pipelineError}
-            onRun={executePipeline}
-          />
-        </motion.section>
-      </AnimatePresence>
+        <DecisionWorkspace result={result} requirement={requirement} loading={loading} error={error} />
+        <EvidenceSection result={result} />
 
-      {/* ── Navigation Dots ────────────────────────────────── */}
-      <div className="nav-dots">
-        {Array.from({ length: SECTION_COUNT }).map((_, i) => (
-          <button
-            key={i}
-            className={`nav-dot ${activeSection === i ? 'active' : ''}`}
-            onClick={() => navigate(i)}
-            aria-label={`Go to section ${i + 1}`}
-          />
-        ))}
-      </div>
+        <section className="closing page-frame" id="decision" data-enter>
+          <div>
+            <p className="eyebrow">Update the scenario</p>
+            <h2>A better chartering conversation starts with visible assumptions.</h2>
+          </div>
+          <button className="primary-button primary-button--light" type="button" onClick={scrollToBrief}>
+            Run another forecast <ArrowIcon />
+          </button>
+        </section>
+      </main>
 
-      {/* ── Scroll hint (only on hero) ─────────────────────── */}
-      <AnimatePresence>
-        {activeSection === 0 && (
-          <motion.div
-            className="fixed bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 text-white/40 text-xs z-50"
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 10 }}
-            transition={{ duration: 0.4 }}
-          >
-            <span className="tracking-widest uppercase text-[0.6rem]">Scroll to explore</span>
-            <motion.div
-              animate={{ y: [0, 6, 0] }}
-              transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
-            >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M12 5v14M19 12l-7 7-7-7" />
-              </svg>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* ── Section counter ────────────────────────────────── */}
-      <div className="fixed bottom-8 left-10 text-xs text-white/20 font-mono z-50">
-        {String(activeSection + 1).padStart(2, '0')} / {String(SECTION_COUNT).padStart(2, '0')}
-      </div>
+      <footer className="footer page-frame">
+        <a className="brand brand--footer" href="#top" aria-label="SamudraSetu home">
+          <span className="brand__mark" aria-hidden="true"><i /><i /><i /></span>
+          <span>SamudraSetu</span>
+        </a>
+        <p>Decision support for maritime freight procurement.</p>
+        <p>Model outputs are indicative, not financial guarantees.</p>
+      </footer>
     </div>
   );
 }
