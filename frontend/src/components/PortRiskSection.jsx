@@ -1,4 +1,10 @@
+import { useState } from 'react';
+
 export default function PortRiskSection({ result }) {
+  // Demurrage What-If local state — completely separate from official model values
+  const [waitAdjDays, setWaitAdjDays] = useState(0);       // slider delta: -3 to +7 days
+  const [demurrageRate, setDemurrageRate] = useState('');   // user-supplied $/day (not invented)
+
   if (!result) return null;
 
   const { risk, request } = result;
@@ -8,6 +14,17 @@ export default function PortRiskSection({ result }) {
   const totalScore = risk?.total_score ?? 0;
   const maxScore = risk?.max_score ?? 6;
   const riskPct = Math.min(100, Math.round((totalScore / maxScore) * 100));
+
+  // Demurrage what-if calculations — only computed if ML wait_hours exists AND user enters a rate
+  const modelWaitHours = isPortML ? portPrediction.wait_hours : null;
+  const modelWaitDays = modelWaitHours != null ? modelWaitHours / 24 : null;
+  const ratePerDay = parseFloat(demurrageRate);
+  const hasRate = !isNaN(ratePerDay) && ratePerDay > 0;
+  const whatIfWaitDays = modelWaitDays != null ? Math.max(0, modelWaitDays + waitAdjDays) : null;
+  const modelExposure = hasRate && modelWaitDays != null ? modelWaitDays * ratePerDay : null;
+  const whatIfExposure = hasRate && whatIfWaitDays != null ? whatIfWaitDays * ratePerDay : null;
+  const isSliderMoved = waitAdjDays !== 0;
+
 
   return (
     <section className="port-risk-section-wrapper" id="risk">
@@ -134,7 +151,139 @@ export default function PortRiskSection({ result }) {
                   Values are non-negatively clipped to <code>0.0</code>, indicating free berth capacity and no waiting backlog at {request?.destination}.
                 </div>
               </div>
+
+              {/* ── Demurrage What-If ─────────────────────────────────────── */}
+              {/* Local-only calculation. Does NOT modify model values or recommendation. */}
+              <div className="demurrage-whatif-block" aria-label="Demurrage What-If Analysis">
+                <div className="demurrage-whatif-header">
+                  <div>
+                    <span className="demurrage-whatif-kicker">What-If Analysis — Local Only</span>
+                    <h4 className="demurrage-whatif-title">Demurrage Exposure Explorer</h4>
+                  </div>
+                  <span className="demurrage-whatif-note">Does not affect official model results</span>
+                </div>
+
+                {/* Daily rate input — user-supplied, not invented */}
+                <div className="demurrage-rate-input-row">
+                  <label className="demurrage-rate-label" htmlFor="demurrage-rate-input">
+                    Your Demurrage Rate ($/day) — enter to enable exposure calculation
+                  </label>
+                  <div className="demurrage-rate-input-wrap">
+                    <span className="demurrage-rate-prefix">$</span>
+                    <input
+                      id="demurrage-rate-input"
+                      type="number"
+                      className="demurrage-rate-input"
+                      placeholder="e.g. 25000"
+                      min={0}
+                      step={500}
+                      value={demurrageRate}
+                      onChange={(e) => setDemurrageRate(e.target.value)}
+                      aria-label="Demurrage rate in US dollars per day"
+                    />
+                    <span className="demurrage-rate-suffix">/day</span>
+                  </div>
+                </div>
+
+                {/* Slider: wait adjustment −3 to +7 days */}
+                <div className="demurrage-slider-section">
+                  <div className="demurrage-slider-header-row">
+                    <label className="demurrage-slider-label" htmlFor="wait-adj-slider">
+                      Wait time adjustment
+                    </label>
+                    <div className="demurrage-slider-value-chip">
+                      {waitAdjDays === 0 ? 'No adjustment (model value)' : `${waitAdjDays > 0 ? '+' : ''}${waitAdjDays} days`}
+                    </div>
+                  </div>
+                  <input
+                    id="wait-adj-slider"
+                    type="range"
+                    className="demurrage-slider"
+                    min={-3}
+                    max={7}
+                    step={0.5}
+                    value={waitAdjDays}
+                    onChange={(e) => setWaitAdjDays(parseFloat(e.target.value))}
+                    aria-label={`Wait adjustment: ${waitAdjDays > 0 ? '+' : ''}${waitAdjDays} days`}
+                    aria-valuemin={-3}
+                    aria-valuemax={7}
+                    aria-valuenow={waitAdjDays}
+                  />
+                  <div className="demurrage-slider-rail-labels">
+                    <span>−3 days</span>
+                    <span>Model value</span>
+                    <span>+7 days</span>
+                  </div>
+                </div>
+
+                {/* Results comparison */}
+                <div className="demurrage-comparison-grid">
+                  {/* Model column — always shows model values, never overwritten */}
+                  <div className="demurrage-col demurrage-col-model">
+                    <span className="demurrage-col-label">MODEL</span>
+                    <div className="demurrage-stat-row">
+                      <span className="demurrage-stat-name">Wait</span>
+                      <strong className="demurrage-stat-val">
+                        {modelWaitDays != null ? `${modelWaitDays.toFixed(2)} days (${portPrediction.wait_hours.toFixed(1)} hrs)` : '—'}
+                      </strong>
+                    </div>
+                    <div className="demurrage-stat-row">
+                      <span className="demurrage-stat-name">Exposure</span>
+                      <strong className="demurrage-stat-val">
+                        {modelExposure != null
+                          ? `$${Number(modelExposure).toLocaleString('en-US', { maximumFractionDigits: 0 })}`
+                          : hasRate ? '—' : <span className="demurrage-no-rate">Enter rate above</span>}
+                      </strong>
+                    </div>
+                  </div>
+
+                  {/* Divider */}
+                  <div className="demurrage-col-divider" aria-hidden="true" />
+
+                  {/* What-If column — local only, reset possible */}
+                  <div className={`demurrage-col demurrage-col-whatif ${isSliderMoved ? 'demurrage-col-whatif--active' : ''}`}>
+                    <div className="demurrage-whatif-col-header">
+                      <span className="demurrage-col-label">WHAT-IF</span>
+                      {isSliderMoved && (
+                        <button
+                          type="button"
+                          className="btn-demurrage-reset"
+                          onClick={() => setWaitAdjDays(0)}
+                          aria-label="Reset to model value"
+                        >
+                          ↩ Reset
+                        </button>
+                      )}
+                    </div>
+                    <div className="demurrage-stat-row">
+                      <span className="demurrage-stat-name">Wait</span>
+                      <strong className="demurrage-stat-val">
+                        {whatIfWaitDays != null
+                          ? `${whatIfWaitDays.toFixed(2)} days ${isSliderMoved ? `(${waitAdjDays > 0 ? '+' : ''}${waitAdjDays}d adjustment)` : ''}`
+                          : '—'}
+                      </strong>
+                    </div>
+                    <div className="demurrage-stat-row">
+                      <span className="demurrage-stat-name">Exposure</span>
+                      <strong className="demurrage-stat-val">
+                        {whatIfExposure != null
+                          ? `$${Number(whatIfExposure).toLocaleString('en-US', { maximumFractionDigits: 0 })}`
+                          : hasRate ? '—' : <span className="demurrage-no-rate">Enter rate above</span>}
+                      </strong>
+                    </div>
+                    {!isSliderMoved && (
+                      <span className="demurrage-at-model-note">Showing model value — move slider to explore</span>
+                    )}
+                  </div>
+                </div>
+
+                <p className="demurrage-disclaimer">
+                  ⚠ This is a local what-if calculation only. It uses your entered rate and the model wait estimate.
+                  It does not change the official recommendation, model output, or scenario inputs.
+                </p>
+              </div>
             </div>
+
           ) : (
             <div className="port-metrics-content">
               <div className="port-unmodeled-alert">

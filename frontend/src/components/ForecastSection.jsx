@@ -55,13 +55,12 @@ function CustomForecastTooltip({ active, payload, label }) {
 export default function ForecastSection({ forecast }) {
   const [showMetrics, setShowMetrics] = useState(false);
 
-  if (!forecast) return null;
-
-  const history = useMemo(() => (forecast.historical || []).slice(-60), [forecast.historical]);
-  const futureSeries = useMemo(() => forecast.series || [], [forecast.series]);
+  const history = useMemo(() => (forecast?.historical || []).slice(-60), [forecast?.historical]);
+  const futureSeries = useMemo(() => forecast?.series || [], [forecast?.series]);
 
   // Construct chart data array bridging historical to forecast
   const chartData = useMemo(() => {
+    if (!forecast) return [];
     const historicalPoints = history.map((pt) => ({
       date: pt.date,
       historicalRate: pt.value,
@@ -97,9 +96,10 @@ export default function ForecastSection({ forecast }) {
     }));
 
     return [...historicalPoints, bridgePoint, ...forecastPoints];
-  }, [history, futureSeries, forecast.current_rate_usd_per_mt]);
+  }, [history, futureSeries, forecast]);
 
   const allValues = useMemo(() => {
+    if (!forecast) return [];
     const vals = [
       ...history.map((pt) => pt.value),
       forecast.current_rate_usd_per_mt,
@@ -109,6 +109,8 @@ export default function ForecastSection({ forecast }) {
     ].filter((v) => typeof v === 'number' && !isNaN(v));
     return vals;
   }, [history, forecast]);
+
+  if (!forecast) return null;
 
   const yMin = Math.max(0, Math.floor(Math.min(...allValues) * 0.95));
   const yMax = Math.ceil(Math.max(...allValues) * 1.05);

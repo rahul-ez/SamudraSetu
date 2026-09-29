@@ -1,6 +1,6 @@
 import { formatFeasibilityStatus } from '../utils/statusHelpers';
 
-export default function ExecutiveStrip({ result }) {
+export default function ExecutiveStrip({ result, isStale }) {
   if (!result) return null;
 
   const { forecast, feasibility, risk, request } = result;
@@ -33,14 +33,22 @@ export default function ExecutiveStrip({ result }) {
           <span className="section-eyebrow-tag">Executive Summary</span>
           <h2 className="section-heading-primary">Key Operational &amp; Market Metrics</h2>
         </div>
-        <div className="scenario-summary-pill">
-          <span>{request?.origin} &rarr; {request?.destination}</span>
-          <span>&middot;</span>
-          <span>{request?.vessel_class}</span>
-          <span>&middot;</span>
-          <span>{Number(request?.cargo_quantity_mt || 0).toLocaleString()} MT</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          {isStale && (
+            <span className="stale-section-badge" aria-label="Results are stale — inputs have changed">
+              <span aria-hidden="true">⚠</span> Stale Results
+            </span>
+          )}
+          <div className="scenario-summary-pill">
+            <span>{request?.origin} &rarr; {request?.destination}</span>
+            <span>&middot;</span>
+            <span>{request?.vessel_class}</span>
+            <span>&middot;</span>
+            <span>{Number(request?.cargo_quantity_mt || 0).toLocaleString()} MT</span>
+          </div>
         </div>
       </div>
+
 
       <div className="metrics-strip-grid">
         {/* Metric 1: Current Rate */}

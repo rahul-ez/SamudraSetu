@@ -7,6 +7,9 @@ export default function ScenarioPanel({
   loading,
   error,
   onRun,
+  onRequirementChange,
+  validationMessage,
+  hasValidationError,
 }) {
   const [form, setForm] = useState(requirement);
   const cargoInputId = useId();
@@ -59,7 +62,10 @@ export default function ScenarioPanel({
       : [7, 14, 30, 60];
 
   const update = (key, value) => {
-    setForm((prev) => ({ ...prev, [key]: value }));
+    const next = { ...form, [key]: value };
+    setForm(next);
+    // Notify parent immediately so stale detection can compare
+    if (onRequirementChange) onRequirementChange(next);
   };
 
   const handlePortSelectFromMap = (portName) => {
@@ -285,7 +291,15 @@ export default function ScenarioPanel({
               </div>
             </div>
 
-            {error && (
+            {/* Input validation error — shown before run is attempted */}
+            {validationMessage && (
+              <div className="form-validation-alert form-validation-warning" role="alert">
+                <strong>⚠ Validation:</strong> {validationMessage}
+              </div>
+            )}
+
+            {/* Execution error — shown after a failed run */}
+            {error && !validationMessage && (
               <div className="form-validation-alert" role="alert">
                 <strong>Execution Error:</strong> {error}
               </div>
@@ -295,17 +309,21 @@ export default function ScenarioPanel({
               <button
                 type="submit"
                 className="btn-execute-pipeline"
-                disabled={loading}
+                disabled={loading || hasValidationError}
+                aria-disabled={loading || hasValidationError}
+                title={hasValidationError ? validationMessage : undefined}
               >
                 {loading ? (
                   <>
                     <span className="loading-spinner-ring" />
                     <span>Executing Decision Pipeline...</span>
                   </>
+                ) : hasValidationError ? (
+                  <span>Fix Validation Issues to Run</span>
                 ) : (
                   <>
-                    <span>Run Procurement Forecast & Decision</span>
-                    <svg viewBox="0 0 20 20" width="16" height="16" fill="currentColor">
+                    <span>Run Procurement Forecast &amp; Decision</span>
+                    <svg viewBox="0 0 20 20" width="16" height="16" fill="currentColor" aria-hidden="true">
                       <path d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z" />
                     </svg>
                   </>
