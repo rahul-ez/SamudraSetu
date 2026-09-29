@@ -1,189 +1,227 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import gsap from 'gsap';
-import { ScrollTrigger } from 'gsap/ScrollTrigger';
-import { useGSAP } from '@gsap/react';
+
 import Navigation from './components/Navigation';
-import RequirementForm from './components/RequirementForm';
-import DecisionWorkspace from './components/DecisionWorkspace';
-import EvidenceSection from './components/EvidenceSection';
+import ScenarioPanel from './components/ScenarioPanel';
+import ExecutiveStrip from './components/ExecutiveStrip';
+import ForecastSection from './components/ForecastSection';
+import PortRiskSection from './components/PortRiskSection';
+import FeasibilitySection from './components/FeasibilitySection';
+import DecisionSection from './components/DecisionSection';
+import MethodologySection from './components/MethodologySection';
 import { getPipelineConfig, runPipeline } from './api';
 
-gsap.registerPlugin(useGSAP, ScrollTrigger);
-
-function ArrowIcon() {
-  return <svg aria-hidden="true" viewBox="0 0 20 20"><path d="M4 10h11M11 5l5 5-5 5" /></svg>;
-}
-
 export default function App() {
-  const pageRef = useRef(null);
   const [config, setConfig] = useState(null);
   const [requirement, setRequirement] = useState(null);
   const [result, setResult] = useState(null);
   const [error, setError] = useState('');
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [initializing, setInitializing] = useState(true);
 
   const executePipeline = useCallback(async (nextRequirement) => {
     setRequirement(nextRequirement);
     setLoading(true);
     setError('');
     try {
-      setResult(await runPipeline(nextRequirement));
-    } catch (pipelineError) {
-      setError(pipelineError instanceof Error ? pipelineError.message : 'The pipeline could not complete this request.');
+      const pipelineOutput = await runPipeline(nextRequirement);
+      setResult(pipelineOutput);
+      // Smooth scroll to executive overview upon execution
+      setTimeout(() => {
+        const overviewEl = document.querySelector('#overview');
+        if (overviewEl) {
+          overviewEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      }, 150);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'The decision pipeline encountered an error.');
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    let active = true;
-    let initialRequirement;
+    let isMounted = true;
+    let initialReq;
+
     getPipelineConfig()
-      .then((backendConfig) => {
-        if (!backendConfig.default_requirement) {
-          throw new Error('The backend has no loaded trained freight scenario.');
+      .then((cfg) => {
+        if (!cfg.default_requirement) {
+          throw new Error('No default scenario returned by backend service.');
         }
-        initialRequirement = backendConfig.default_requirement;
-        if (active) {
-          setConfig(backendConfig);
-          setRequirement(initialRequirement);
+        initialReq = cfg.default_requirement;
+        if (isMounted) {
+          setConfig(cfg);
+          setRequirement(initialReq);
         }
-        return runPipeline(initialRequirement);
+        return runPipeline(initialReq);
       })
-      .then((initialResult) => {
-        if (active) setResult(initialResult);
+      .then((res) => {
+        if (isMounted) {
+          setResult(res);
+        }
       })
-      .catch((pipelineError) => {
-        if (active) setError(pipelineError instanceof Error ? pipelineError.message : 'The pipeline could not complete this request.');
+      .catch((err) => {
+        if (isMounted) {
+          setError(err instanceof Error ? err.message : 'Connection to backend pipeline failed.');
+        }
       })
       .finally(() => {
-        if (active) setLoading(false);
+        if (isMounted) {
+          setInitializing(false);
+        }
       });
-    return () => { active = false; };
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
-  useGSAP(() => {
-    const media = gsap.matchMedia();
-    media.add({ allowMotion: '(prefers-reduced-motion: no-preference)' }, (context) => {
-      if (!context.conditions.allowMotion) return;
+  const scrollToScenario = () => {
+    const el = document.querySelector('#scenario');
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
 
-      gsap.from('[data-hero-reveal]', {
-        y: 28,
-        opacity: 0,
-        duration: 0.8,
-        stagger: 0.09,
-        ease: 'power3.out',
-      });
-    });
-    return () => media.revert();
-  }, { scope: pageRef });
-
-  useGSAP(() => {
-    if (!result) return undefined;
-    const media = gsap.matchMedia();
-    media.add({ allowMotion: '(prefers-reduced-motion: no-preference)', desktop: '(min-width: 960px)' }, (context) => {
-      if (!context.conditions.allowMotion) return;
-
-      gsap.utils.toArray('[data-enter]').forEach((element) => {
-        gsap.from(element, {
-          y: 28,
-          opacity: 0,
-          duration: 0.65,
-          ease: 'power2.out',
-          scrollTrigger: { trigger: element, start: 'top 88%', once: true },
-        });
-      });
-
-      gsap.utils.toArray('[data-reveal-line]').forEach((line) => {
-        gsap.fromTo(line, { opacity: 0.18, y: 14 }, {
-          opacity: 1,
-          y: 0,
-          ease: 'none',
-          scrollTrigger: { trigger: line, start: 'top 84%', end: 'top 58%', scrub: 0.5 },
-        });
-      });
-
-      if (context.conditions.desktop) {
-        ScrollTrigger.create({
-          trigger: '.evidence',
-          start: 'top 112px',
-          end: 'bottom bottom-=80',
-          pin: '.evidence__rail',
-          pinSpacing: false,
-        });
-      }
-    });
-    return () => media.revert();
-  }, { scope: pageRef, dependencies: [result], revertOnUpdate: true });
-
-  const scrollToBrief = () => document.querySelector('#brief')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  const capabilities = config
-    ? [
-      ...config.supported_scenarios.map((scenario) => `${scenario.model}: ${scenario.origin} to ${scenario.destination}, ${scenario.vessel_class}, ${scenario.horizons_days.join('/')} day`),
-      ...Object.entries(config.models)
-        .filter(([name, model]) => name.includes('port_risk') && model.loaded)
-        .map(([, model]) => `Port risk model: ${model.scope.destination}`),
-    ]
-    : [];
+  if (initializing) {
+    return (
+      <div className="init-loading-splash">
+        <div className="splash-content-box">
+          <div className="splash-logo-mark">
+            <span className="logo-bar bar-1" />
+            <span className="logo-bar bar-2" />
+            <span className="logo-bar bar-3" />
+          </div>
+          <h2 className="splash-title">SamudraSetu</h2>
+          <div className="splash-spinner-ring" />
+          <p className="splash-status-text">
+            Connecting to FastAPI backend &amp; initializing PyTorch/XGBoost models...
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div ref={pageRef} className="site-shell">
-      <Navigation onRunClick={scrollToBrief} loading={loading} />
-      <main>
-        <section className="hero page-frame" aria-labelledby="hero-title">
-          <div className="hero__copy">
-            <p className="eyebrow" data-hero-reveal>Freight intelligence for bulk procurement</p>
-            <h1 id="hero-title" data-hero-reveal>Plan chartering with the market in view.</h1>
-            <p className="hero__lede" data-hero-reveal>
-              Turn a route requirement into a probabilistic freight outlook, port feasibility check, and an explainable contract decision.
+    <div className="app-workspace-root">
+      <Navigation onRunClick={scrollToScenario} loading={loading} />
+
+      <main className="main-content-flow">
+        {/* Platform Hero Banner */}
+        <section className="platform-hero-header">
+          <div className="hero-constrained-container">
+            <div className="hero-branding-tag">
+              <span className="tag-beacon-dot" />
+              <span>Bulk Procurement Decision Intelligence</span>
+            </div>
+            <h1 className="hero-primary-headline">
+              Maritime Freight Forecasting &amp; Chartering Decision Support
+            </h1>
+            <p className="hero-body-lede">
+              Evaluate dry-bulk coal procurement requirements through probabilistic forward projections,
+              real port physical berth compliance, and cost-optimized charter structuring.
             </p>
-            <button className="text-link" type="button" onClick={() => document.querySelector('#forecast')?.scrollIntoView({ behavior: 'smooth' })} data-hero-reveal>
-              Review the decision workspace <ArrowIcon />
-            </button>
+
+            <div className="hero-metrics-pill-cluster">
+              <div className="metric-pill-item">
+                <strong>4 Committed ML Artifacts</strong>
+                <span>PyTorch LSTM &amp; XGBoost</span>
+              </div>
+              <div className="metric-pill-divider" />
+              <div className="metric-pill-item">
+                <strong>7 Indian Coal Ports</strong>
+                <span>Physical Limits Audited</span>
+              </div>
+              <div className="metric-pill-divider" />
+              <div className="metric-pill-item">
+                <strong>5-Stage Decision Pipeline</strong>
+                <span>Deterministic &amp; Transparent</span>
+              </div>
+            </div>
           </div>
-          <div className="hero__brief" id="brief" data-hero-reveal>
+        </section>
+
+        {/* 1. Scenario Setup & Spatial Route Map */}
+        <div className="workspace-section-boundary">
+          <div className="constrained-section-inner">
             {config && requirement ? (
-              <RequirementForm config={config} requirement={requirement} loading={loading} error={error} onRun={executePipeline} />
+              <ScenarioPanel
+                config={config}
+                requirement={requirement}
+                loading={loading}
+                error={error}
+                onRun={executePipeline}
+              />
             ) : (
-              <div className="brief-card config-loading" role="status">
-                <span className="loading-mark" aria-hidden="true" />
-                <div><strong>Connecting to the backend</strong><p>{error || 'Loading supported trained-model scenarios.'}</p></div>
+              <div className="empty-state-notice">
+                <p>Failed to load scenario configuration. Please verify the backend is running.</p>
+                {error && <span className="error-detail-text">{error}</span>}
               </div>
             )}
           </div>
-        </section>
+        </div>
 
-        {capabilities.length > 0 && <div className="marquee" aria-label="Backend model capabilities">
-          <div className="marquee__track">
-            {[0, 1].map((copy) => (
-              <div className="marquee__set" aria-hidden={copy === 1} key={copy}>
-                {capabilities.map((capability) => <span key={capability}>{capability}</span>)}
+        {/* Pipeline Execution Results Section */}
+        {result && (
+          <div className="results-pipeline-container">
+            {/* 2. Executive Overview Strip */}
+            <div className="workspace-section-boundary">
+              <div className="constrained-section-inner">
+                <ExecutiveStrip result={result} />
               </div>
-            ))}
-          </div>
-        </div>}
+            </div>
 
-        <DecisionWorkspace result={result} loading={loading} error={error} />
-        <EvidenceSection result={result} />
+            {/* 3. Freight Outlook & Forward Trajectory */}
+            <div className="workspace-section-boundary">
+              <div className="constrained-section-inner">
+                <ForecastSection forecast={result.forecast} />
+              </div>
+            </div>
 
-        <section className="closing page-frame" id="decision" data-enter>
-          <div>
-            <p className="eyebrow">Update the scenario</p>
-            <h2>A better chartering conversation starts with visible assumptions.</h2>
+            {/* 4. Port Operational Risk & Congestion */}
+            <div className="workspace-section-boundary">
+              <div className="constrained-section-inner">
+                <PortRiskSection result={result} />
+              </div>
+            </div>
+
+            {/* 5. Navigational Feasibility & Economics */}
+            <div className="workspace-section-boundary">
+              <div className="constrained-section-inner">
+                <FeasibilitySection result={result} />
+              </div>
+            </div>
+
+            {/* 6. Chartering Recommendation Verdict */}
+            <div className="workspace-section-boundary">
+              <div className="constrained-section-inner">
+                <DecisionSection result={result} onRunAgain={scrollToScenario} />
+              </div>
+            </div>
+
+            {/* 7. Methodology & Technical Provenance */}
+            <div className="workspace-section-boundary">
+              <div className="constrained-section-inner">
+                <MethodologySection result={result} />
+              </div>
+            </div>
           </div>
-          <button className="primary-button primary-button--light" type="button" onClick={scrollToBrief}>
-            Run another forecast <ArrowIcon />
-          </button>
-        </section>
+        )}
       </main>
 
-      <footer className="footer page-frame">
-        <a className="brand brand--footer" href="#top" aria-label="SamudraSetu home">
-          <span className="brand__mark" aria-hidden="true"><i /><i /><i /></span>
-          <span>SamudraSetu</span>
-        </a>
-        <p>Decision support for maritime freight procurement.</p>
-        <p>Model outputs are indicative, not financial guarantees.</p>
+      <footer className="site-platform-footer">
+        <div className="footer-constrained-shell">
+          <div className="footer-brand-info">
+            <span className="footer-logo-title">SamudraSetu</span>
+            <p className="footer-tagline">
+              Maritime Freight Forecasting &amp; Chartering Optimization Platform
+            </p>
+          </div>
+          <div className="footer-provenance-notes">
+            <p>Model outputs are indicative decision support projections; not financial guarantees.</p>
+            <p>Macro indicators sourced from FRED / EIA / RBI. Freight routes simulated via geometric Brownian motion proxy series.</p>
+          </div>
+        </div>
       </footer>
     </div>
   );

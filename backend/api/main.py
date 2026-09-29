@@ -57,29 +57,42 @@ async def health() -> HealthResponse:
 async def model_status(request: Request) -> dict[str, Any]:
     return _registry(request).status()
 
-
 @app.get("/api/v1/pipeline/config")
 async def pipeline_config(request: Request) -> dict[str, Any]:
-    """Return backend-owned UI choices limited to loaded trained models."""
+    """Return backend-owned UI choices: ML scenarios + all supported options."""
 
     registry = _registry(request)
-    scenarios = registry.supported_freight_scenarios()
+    ml_scenarios = registry.supported_freight_scenarios()
     request_schema = PipelineRequest.model_json_schema()["properties"]
+
+    origins = request_schema["origin"]["enum"]
+    destinations = request_schema["destination"]["enum"]
+    vessel_classes = request_schema["vessel_class"]["enum"]
+    horizons = request_schema["horizon_days"]["enum"]
+
     default_requirement = None
-    if scenarios:
-        first = scenarios[0]
+    if ml_scenarios:
+        first = ml_scenarios[0]
         default_requirement = PipelineRequest(
             origin=first["origin"],
             destination=first["destination"],
             vessel_class=first["vessel_class"],
             cargo_type=first["cargo_type"],
+            cargo_quantity_mt=150_000,
             horizon_days=first["horizons_days"][0],
         ).model_dump()
+    else:
+        default_requirement = PipelineRequest().model_dump()
 
     return {
-        "service_status": "ready" if scenarios else "unavailable",
+        "service_status": "ready" if ml_scenarios else "degraded",
         "default_requirement": default_requirement,
-        "supported_scenarios": scenarios,
+        "supported_scenarios": ml_scenarios,
+        "ml_scenarios": ml_scenarios,
+        "available_origins": origins,
+        "available_destinations": destinations,
+        "available_vessels": vessel_classes,
+        "available_horizons": horizons,
         "input_constraints": {
             "cargo_quantity_mt": {
                 "exclusive_minimum": request_schema["cargo_quantity_mt"][
@@ -87,12 +100,15 @@ async def pipeline_config(request: Request) -> dict[str, Any]:
                 ],
                 "maximum": request_schema["cargo_quantity_mt"]["maximum"],
                 "step": 1000,
+                "default": 150_000,
             },
             "congestion_levels": request_schema["congestion_level"]["enum"],
             "availability_levels": request_schema["availability_level"]["enum"],
         },
         "models": registry.status(),
     }
+
+
 
 
 @app.post("/api/v1/predict/freight")
