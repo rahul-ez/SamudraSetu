@@ -4,7 +4,7 @@ import 'leaflet/dist/leaflet.css';
 
 // Coordinates for all supported ports
 export const PORT_COORDINATES = {
-  Australia: [-32.9283, 151.7817], // Port of Newcastle
+  Australia: [-32.9283, 151.7817], // Port of Newcastle (NSW)
   'United States': [36.8468, -76.2951], // Hampton Roads / Norfolk, VA
   Mozambique: [-25.9692, 32.5732], // Port of Maputo
   Indonesia: [-1.2379, 116.8529], // Balikpapan Coal Terminal
@@ -35,7 +35,7 @@ export const PORT_DESCRIPTIONS = {
   Haldia: 'Haldia Dock Complex (West Bengal) — Riverine Bulk Terminal',
 };
 
-// Maritime corridor generator ensuring water-only navigation
+// Maritime corridor generator ensuring water-only navigation through open seas & straits
 export function getMaritimeRoute(origin, destination) {
   const originCoord = PORT_COORDINATES[origin];
   const destCoord = PORT_COORDINATES[destination];
@@ -184,7 +184,7 @@ export default function RouteMap({
           </span>
         </div>
         <p className="route-map-desc">
-          Navigable deepwater shipping corridor via verified maritime choke points. Click any port marker to inspect conditions.
+          Navigable deepwater shipping corridor via verified maritime choke points. Click any port pin on the East Coast of India to switch destinations.
         </p>
       </div>
 
@@ -193,13 +193,15 @@ export default function RouteMap({
           center={[10, 85]}
           zoom={3}
           minZoom={2}
-          maxZoom={10}
+          maxZoom={12}
           scrollWheelZoom={true}
           style={{ width: '100%', height: '100%', borderRadius: '8px' }}
         >
+          {/* OpenStreetMap Standard Tile Layer — Zero API Key Required */}
           <TileLayer
-            url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
-            attribution='&copy; <a href="https://carto.com/">CARTO</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            maxZoom={19}
           />
 
           {/* Maritime Navigation Path */}
@@ -216,46 +218,70 @@ export default function RouteMap({
             />
           )}
 
-          {/* Origin Marker */}
+          {/* Origin Marker with Outer Pulsing Ring */}
           {originCoord && (
-            <CircleMarker
-              center={originCoord}
-              radius={8}
-              pathOptions={{
-                color: '#0369a1',
-                fillColor: '#0284c7',
-                fillOpacity: 0.95,
-                weight: 2,
-              }}
-            >
-              <Tooltip permanent={false} direction="top">
-                <div className="map-marker-tooltip">
-                  <strong>ORIGIN: {origin}</strong>
-                  <span>{PORT_DESCRIPTIONS[origin] || origin}</span>
-                </div>
-              </Tooltip>
-            </CircleMarker>
+            <>
+              <CircleMarker
+                center={originCoord}
+                radius={14}
+                pathOptions={{
+                  color: '#0284c7',
+                  fillColor: '#38bdf8',
+                  fillOpacity: 0.25,
+                  weight: 1.5,
+                }}
+              />
+              <CircleMarker
+                center={originCoord}
+                radius={7}
+                pathOptions={{
+                  color: '#0369a1',
+                  fillColor: '#0284c7',
+                  fillOpacity: 1,
+                  weight: 2,
+                }}
+              >
+                <Tooltip permanent={false} direction="top">
+                  <div className="map-marker-tooltip">
+                    <strong>ORIGIN: {origin}</strong>
+                    <span>{PORT_DESCRIPTIONS[origin] || origin}</span>
+                  </div>
+                </Tooltip>
+              </CircleMarker>
+            </>
           )}
 
-          {/* Destination Marker */}
+          {/* Destination Marker with Distinct Amber Highlight Ring */}
           {destCoord && (
-            <CircleMarker
-              center={destCoord}
-              radius={9}
-              pathOptions={{
-                color: '#b45309',
-                fillColor: '#d97706',
-                fillOpacity: 0.95,
-                weight: 2,
-              }}
-            >
-              <Tooltip permanent={true} direction="right" offset={[10, 0]}>
-                <div className="map-marker-tooltip">
-                  <strong>DESTINATION: {destination}</strong>
-                  <span>{PORT_DESCRIPTIONS[destination] || destination}</span>
-                </div>
-              </Tooltip>
-            </CircleMarker>
+            <>
+              <CircleMarker
+                center={destCoord}
+                radius={16}
+                pathOptions={{
+                  color: '#d97706',
+                  fillColor: '#fbbf24',
+                  fillOpacity: 0.28,
+                  weight: 2,
+                }}
+              />
+              <CircleMarker
+                center={destCoord}
+                radius={8}
+                pathOptions={{
+                  color: '#92400e',
+                  fillColor: '#d97706',
+                  fillOpacity: 1,
+                  weight: 2,
+                }}
+              >
+                <Tooltip permanent={true} direction="right" offset={[12, 0]}>
+                  <div className="map-marker-tooltip">
+                    <strong>DESTINATION: {destination}</strong>
+                    <span>{PORT_DESCRIPTIONS[destination] || destination}</span>
+                  </div>
+                </Tooltip>
+              </CircleMarker>
+            </>
           )}
 
           {/* Other Indian Ports Markers for Quick Click */}
@@ -278,9 +304,9 @@ export default function RouteMap({
                 center={coords}
                 radius={5}
                 pathOptions={{
-                  color: '#64748b',
+                  color: '#475569',
                   fillColor: '#94a3b8',
-                  fillOpacity: 0.8,
+                  fillOpacity: 0.85,
                   weight: 1.5,
                 }}
                 eventHandlers={{
@@ -290,7 +316,7 @@ export default function RouteMap({
                 <Tooltip permanent={false} direction="top">
                   <div className="map-marker-tooltip">
                     <strong>Port of {portName}</strong>
-                    <span style={{ color: '#0284c7', fontSize: '11px' }}>Click to select this destination</span>
+                    <span style={{ color: '#0284c7', fontSize: '11px', fontWeight: 600 }}>Click to select port</span>
                   </div>
                 </Tooltip>
               </CircleMarker>
@@ -312,7 +338,7 @@ export default function RouteMap({
         </div>
         <div className="legend-chip">
           <span className="legend-dot" style={{ background: '#94a3b8' }} />
-          <span>Supported Indian Ports (Clickable)</span>
+          <span>Other Indian Ports (Clickable)</span>
         </div>
         <div className="legend-chip">
           <span className="legend-line-sample" style={{ borderColor: isTrainedModel ? '#0284c7' : '#d97706', borderStyle: isTrainedModel ? 'solid' : 'dashed' }} />

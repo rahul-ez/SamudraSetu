@@ -8,6 +8,7 @@ import {
   Tooltip,
   Cell,
 } from 'recharts';
+import { formatFeasibilityStatus } from '../utils/statusHelpers';
 
 function CostBarTooltip({ active, payload, label }) {
   if (!active || !payload?.length) return null;
@@ -54,13 +55,13 @@ export default function FeasibilitySection({ result }) {
 
   return (
     <section className="feasibility-section-wrapper" id="feasibility">
-      <div className="section-title-bar">
+      <div className="section-title-bar" data-section-reveal>
         <div>
           <span className="section-eyebrow-tag">Navigational Constraints &amp; Economics</span>
           <h2 className="section-heading-primary">Port Physical Fit &amp; Contract Economics</h2>
         </div>
         <div className="port-context-badge">
-          <span>Port: <strong>{feasibility?.port}</strong></span>
+          <span>Destination Port: <strong>{feasibility?.port}</strong></span>
           <span>&middot;</span>
           <span>Requirement: <strong>{Number(request?.cargo_quantity_mt || 0).toLocaleString()} MT</strong></span>
         </div>
@@ -68,7 +69,7 @@ export default function FeasibilitySection({ result }) {
 
       <div className="feasibility-equal-grid">
         {/* Left Column: Physical Port Compatibility Table */}
-        <div className="feasibility-card-panel">
+        <div className="feasibility-card-panel" data-card-reveal>
           <div className="panel-inner-header">
             <div>
               <span className="card-kicker-tag">Berth &amp; Channel Limits</span>
@@ -93,44 +94,49 @@ export default function FeasibilitySection({ result }) {
                 {candidates.map((cand) => {
                   const isSelected = cand.vessel_class === selectedVessel;
                   const rowSpan = cand.checks.length;
+                  const candFeas = formatFeasibilityStatus(cand.overall);
 
-                  return cand.checks.map((check, idx) => (
-                    <tr
-                      key={`${cand.vessel_class}-${check.constraint}`}
-                      className={isSelected ? 'row-selected-vessel' : ''}
-                    >
-                      {idx === 0 && (
-                        <td
-                          rowSpan={rowSpan}
-                          className="vessel-class-col-cell"
-                        >
-                          <div className="vessel-name-stack">
-                            <strong className="vessel-class-label">{cand.vessel_class}</strong>
-                            {isSelected && (
-                              <span className="selected-vessel-pill">Selected</span>
-                            )}
-                            <span className="vessel-overall-tag">
-                              {cand.overall === 'pass' ? 'Fit: Feasible' : cand.overall === 'fail' ? 'Fit: Exceeded' : 'Fit: Conditional'}
-                            </span>
-                          </div>
+                  return cand.checks.map((check, idx) => {
+                    const checkFeas = formatFeasibilityStatus(check.status);
+
+                    return (
+                      <tr
+                        key={`${cand.vessel_class}-${check.constraint}`}
+                        className={isSelected ? 'row-selected-vessel' : ''}
+                      >
+                        {idx === 0 && (
+                          <td
+                            rowSpan={rowSpan}
+                            className="vessel-class-col-cell"
+                          >
+                            <div className="vessel-name-stack">
+                              <strong className="vessel-class-label">{cand.vessel_class}</strong>
+                              {isSelected && (
+                                <span className="selected-vessel-pill">Selected</span>
+                              )}
+                              <span className="vessel-overall-tag">
+                                Fit: {candFeas.label}
+                              </span>
+                            </div>
+                          </td>
+                        )}
+                        <td className="constraint-name-cell">{check.constraint}</td>
+                        <td className="numeric-spec-cell">
+                          {check.vessel_value} {check.constraint === 'Draft' || check.constraint === 'LOA' || check.constraint === 'Beam' ? 'm' : check.constraint === 'DWT' ? 'DWT' : ''}
                         </td>
-                      )}
-                      <td className="constraint-name-cell">{check.constraint}</td>
-                      <td className="numeric-spec-cell">
-                        {check.vessel_value} {check.constraint === 'Draft' || check.constraint === 'LOA' || check.constraint === 'Beam' ? 'm' : check.constraint === 'DWT' ? 'DWT' : ''}
-                      </td>
-                      <td className="numeric-limit-cell">
-                        {check.port_limit != null
-                          ? `${check.port_limit} ${check.constraint === 'Draft' || check.constraint === 'LOA' || check.constraint === 'Beam' ? 'm' : check.constraint === 'DWT' ? 'DWT' : ''}`
-                          : 'Not Published'}
-                      </td>
-                      <td style={{ textAlign: 'center' }}>
-                        <span className={`compliance-tag tag-${check.status}`}>
-                          {check.status === 'pass' ? 'PASS' : check.status === 'fail' ? 'FAIL' : 'OPEN'}
-                        </span>
-                      </td>
-                    </tr>
-                  ));
+                        <td className="numeric-limit-cell">
+                          {check.port_limit != null
+                            ? `${check.port_limit} ${check.constraint === 'Draft' || check.constraint === 'LOA' || check.constraint === 'Beam' ? 'm' : check.constraint === 'DWT' ? 'DWT' : ''}`
+                            : 'Not Published'}
+                        </td>
+                        <td style={{ textAlign: 'center' }}>
+                          <span className={`compliance-tag tag-${checkFeas.status}`}>
+                            {checkFeas.status.toUpperCase()}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  });
                 })}
               </tbody>
             </table>
@@ -138,7 +144,7 @@ export default function FeasibilitySection({ result }) {
         </div>
 
         {/* Right Column: Comparative Contract Structures */}
-        <div className="feasibility-card-panel">
+        <div className="feasibility-card-panel" data-card-reveal>
           <div className="panel-inner-header">
             <div>
               <span className="card-kicker-tag">Contract Structuring</span>

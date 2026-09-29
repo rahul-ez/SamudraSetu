@@ -24,7 +24,7 @@ function CustomForecastTooltip({ active, payload, label }) {
       {isHistorical && (
         <div className="tooltip-data-row">
           <span className="tooltip-color-indicator dot-historical" />
-          <span className="tooltip-metric-name">Historical Rate:</span>
+          <span className="tooltip-metric-name">Observed Rate:</span>
           <strong className="tooltip-metric-value">
             ${Number(dataPoint.historicalRate).toFixed(2)}/mt
           </strong>
@@ -34,14 +34,14 @@ function CustomForecastTooltip({ active, payload, label }) {
         <>
           <div className="tooltip-data-row">
             <span className="tooltip-color-indicator dot-p50" />
-            <span className="tooltip-metric-name">P50 Forecast:</span>
+            <span className="tooltip-metric-name">P50 Projection:</span>
             <strong className="tooltip-metric-value">
               ${Number(dataPoint.p50).toFixed(2)}/mt
             </strong>
           </div>
           <div className="tooltip-data-row">
             <span className="tooltip-color-indicator dot-band" />
-            <span className="tooltip-metric-name">P10 – P90 Band:</span>
+            <span className="tooltip-metric-name">P10 – P90 Uncertainty:</span>
             <span className="tooltip-metric-value">
               ${Number(dataPoint.p10).toFixed(2)} &ndash; ${Number(dataPoint.p90).toFixed(2)}
             </span>
@@ -119,7 +119,7 @@ export default function ForecastSection({ forecast }) {
 
   return (
     <section className="forecast-section-wrapper" id="forecast">
-      <div className="section-title-bar">
+      <div className="section-title-bar" data-section-reveal>
         <div>
           <span className="section-eyebrow-tag">Market Trajectory</span>
           <h2 className="section-heading-primary">
@@ -135,20 +135,20 @@ export default function ForecastSection({ forecast }) {
 
       <div className="forecast-main-layout">
         {/* Left: Interactive Recharts Graph */}
-        <div className="forecast-chart-card">
+        <div className="forecast-chart-card" data-card-reveal>
           <div className="chart-card-topbar">
             <div>
               <h3 className="chart-card-heading">Historical Trajectory &amp; Forward Cone</h3>
               <p className="chart-card-caption">
-                Daily rates in USD/MT. Cutoff point marks transition from observed history to forecast.
+                Daily rates in USD/MT. Cutoff marks the boundary between verified historical inputs and forward prediction.
               </p>
             </div>
             <div className="chart-legend-elements">
               <span className="legend-item">
-                <span className="legend-swatch swatch-history" /> Historical
+                <span className="legend-swatch swatch-history" /> Historical Input
               </span>
               <span className="legend-item">
-                <span className="legend-swatch swatch-p50" /> P50 Median
+                <span className="legend-swatch swatch-p50" /> P50 Median Forecast
               </span>
               <span className="legend-item">
                 <span className="legend-swatch swatch-band" /> P10–P90 Confidence Band
@@ -183,18 +183,22 @@ export default function ForecastSection({ forecast }) {
                   tickFormatter={(val) => `$${val}`}
                   width={55}
                 />
-                <Tooltip content={<CustomForecastTooltip />} />
+                {/* Vertical hover cursor */}
+                <Tooltip
+                  content={<CustomForecastTooltip />}
+                  cursor={{ stroke: '#64748b', strokeWidth: 1.5, strokeDasharray: '3 3' }}
+                />
 
-                {/* Transition Divider */}
+                {/* Transition Divider at cutoff date */}
                 {cutoffDate && (
                   <ReferenceLine
                     x={cutoffDate}
                     stroke="#94a3b8"
                     strokeDasharray="4 4"
                     label={{
-                      value: 'Cutoff Point',
+                      value: 'Data Cutoff',
                       position: 'top',
-                      fill: '#64748b',
+                      fill: '#475569',
                       fontSize: 10,
                       fontWeight: 600,
                     }}
@@ -206,7 +210,9 @@ export default function ForecastSection({ forecast }) {
                   dataKey="confidenceBand"
                   fill="#bae6fd"
                   fillOpacity={0.4}
-                  stroke="none"
+                  stroke="#7dd3fc"
+                  strokeWidth={1}
+                  strokeDasharray="2 2"
                   connectNulls
                   isAnimationActive={false}
                 />
@@ -214,7 +220,7 @@ export default function ForecastSection({ forecast }) {
                 {/* Historical Observed Rate */}
                 <Line
                   dataKey="historicalRate"
-                  stroke="#475569"
+                  stroke="#334155"
                   strokeWidth={2}
                   dot={false}
                   activeDot={{ r: 5, fill: '#0f172a' }}
@@ -239,7 +245,7 @@ export default function ForecastSection({ forecast }) {
         {/* Right: Analytical Insight Panel */}
         <div className="forecast-insight-panel">
           {/* Target Metric Card */}
-          <div className="insight-stat-card primary-insight">
+          <div className="insight-stat-card primary-insight" data-card-reveal>
             <div className="insight-label">Day {forecast.horizon_days} Median Rate</div>
             <div className="insight-highlight-val">
               ${forecast.p50_usd_per_mt?.toFixed(2)}
@@ -252,7 +258,7 @@ export default function ForecastSection({ forecast }) {
           </div>
 
           {/* Uncertainty Range */}
-          <div className="insight-stat-card">
+          <div className="insight-stat-card" data-card-reveal>
             <div className="insight-label">P10 – P90 Uncertainty Range</div>
             <div className="uncertainty-range-grid">
               <div className="range-point-box">
@@ -267,7 +273,7 @@ export default function ForecastSection({ forecast }) {
 
             <div className="probability-bar-row">
               <div className="prob-label-row">
-                <span>Probability of Increase:</span>
+                <span>Probability of Rate Increase:</span>
                 <strong>{Math.round((forecast.probability_increase || 0) * 100)}%</strong>
               </div>
               <div className="prob-track">
@@ -280,7 +286,7 @@ export default function ForecastSection({ forecast }) {
           </div>
 
           {/* Model Provenance & Verification Card */}
-          <div className="insight-stat-card model-meta-card">
+          <div className="insight-stat-card model-meta-card" data-card-reveal>
             <div className="insight-label">Model Verification &amp; Scope</div>
             <div className="meta-info-list">
               <div className="meta-info-item">

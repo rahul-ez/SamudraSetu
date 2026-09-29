@@ -1,4 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import gsap from 'gsap';
+import { ScrollTrigger } from 'gsap/ScrollTrigger';
+import { useGSAP } from '@gsap/react';
 
 import Navigation from './components/Navigation';
 import ScenarioPanel from './components/ScenarioPanel';
@@ -10,13 +13,51 @@ import DecisionSection from './components/DecisionSection';
 import MethodologySection from './components/MethodologySection';
 import { getPipelineConfig, runPipeline } from './api';
 
+gsap.registerPlugin(useGSAP, ScrollTrigger);
+
+const DEFAULT_SCENARIO = {
+  origin: 'Australia',
+  destination: 'Paradip',
+  vessel_class: 'Capesize',
+  cargo_type: 'Coal',
+  cargo_quantity_mt: 150000,
+  horizon_days: 7,
+  congestion_level: 'Medium',
+  availability_level: 'Medium',
+};
+
+// Localized analytical skeleton state displayed while initial pipeline completes
+function AnalyticalResultsSkeleton() {
+  return (
+    <div className="skeleton-analytical-wrapper">
+      <div className="workspace-section-boundary">
+        <div className="constrained-section-inner">
+          <div className="skeleton-card skeleton-metrics-strip" />
+        </div>
+      </div>
+      <div className="workspace-section-boundary">
+        <div className="constrained-section-inner">
+          <div className="skeleton-grid-two-col">
+            <div className="skeleton-card skeleton-chart-box" />
+            <div className="skeleton-card skeleton-side-box" />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
+  const pageRef = useRef(null);
   const [config, setConfig] = useState(null);
-  const [requirement, setRequirement] = useState(null);
+  const [requirement, setRequirement] = useState(DEFAULT_SCENARIO);
   const [result, setResult] = useState(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [initializing, setInitializing] = useState(true);
+  const [initialRunPending, setInitialRunPending] = useState(true);
+
+  // Prevent duplicate execution from React StrictMode mounting twice in dev
+  const hasInitializedRef = useRef(false);
 
   const executePipeline = useCallback(async (nextRequirement) => {
     setRequirement(nextRequirement);
@@ -25,7 +66,7 @@ export default function App() {
     try {
       const pipelineOutput = await runPipeline(nextRequirement);
       setResult(pipelineOutput);
-      // Smooth scroll to executive overview upon execution
+      // Smooth scroll to executive overview upon manual rerun
       setTimeout(() => {
         const overviewEl = document.querySelector('#overview');
         if (overviewEl) {
@@ -36,38 +77,38 @@ export default function App() {
       setError(err instanceof Error ? err.message : 'The decision pipeline encountered an error.');
     } finally {
       setLoading(false);
+      setInitialRunPending(false);
     }
   }, []);
 
   useEffect(() => {
-    let isMounted = true;
-    let initialReq;
+    if (hasInitializedRef.current) return;
+    hasInitializedRef.current = true;
 
+    let isMounted = true;
+
+    // Load config and execute initial baseline concurrently
     getPipelineConfig()
       .then((cfg) => {
-        if (!cfg.default_requirement) {
-          throw new Error('No default scenario returned by backend service.');
-        }
-        initialReq = cfg.default_requirement;
-        if (isMounted) {
-          setConfig(cfg);
-          setRequirement(initialReq);
-        }
-        return runPipeline(initialReq);
+        if (!isMounted) return;
+        setConfig(cfg);
+        const req = cfg.default_requirement || DEFAULT_SCENARIO;
+        setRequirement(req);
+        return runPipeline(req);
       })
       .then((res) => {
-        if (isMounted) {
+        if (isMounted && res) {
           setResult(res);
         }
       })
       .catch((err) => {
         if (isMounted) {
-          setError(err instanceof Error ? err.message : 'Connection to backend pipeline failed.');
+          setError(err instanceof Error ? err.message : 'Backend connection failed.');
         }
       })
       .finally(() => {
         if (isMounted) {
-          setInitializing(false);
+          setInitialRunPending(false);
         }
       });
 
@@ -76,6 +117,63 @@ export default function App() {
     };
   }, []);
 
+  // GSAP Animations: Hero reveal on mount
+  useGSAP(() => {
+    const mm = gsap.matchMedia();
+    mm.add('(prefers-reduced-motion: no-preference)', () => {
+      gsap.from('[data-hero-reveal]', {
+        y: 18,
+        opacity: 0,
+        duration: 0.6,
+        stagger: 0.08,
+        ease: 'power2.out',
+      });
+    });
+    return () => mm.revert();
+  }, { scope: pageRef });
+
+  // GSAP Animations: ScrollTrigger section & card reveals
+  useGSAP(() => {
+    if (!result) return;
+
+    const mm = gsap.matchMedia();
+    mm.add('(prefers-reduced-motion: no-preference)', () => {
+      // Refresh ScrollTrigger after DOM renders new result sections
+      ScrollTrigger.refresh();
+
+      gsap.utils.toArray('[data-section-reveal]').forEach((el) => {
+        gsap.from(el, {
+          y: 20,
+          opacity: 0,
+          duration: 0.5,
+          ease: 'power2.out',
+          scrollTrigger: {
+            trigger: el,
+            start: 'top 88%',
+            once: true,
+          },
+        });
+      });
+
+      gsap.utils.toArray('[data-card-reveal]').forEach((el) => {
+        gsap.from(el, {
+          y: 18,
+          opacity: 0,
+          duration: 0.5,
+          stagger: 0.06,
+          ease: 'power2.out',
+          scrollTrigger: {
+            trigger: el,
+            start: 'top 88%',
+            once: true,
+          },
+        });
+      });
+    });
+
+    return () => mm.revert();
+  }, { scope: pageRef, dependencies: [result] });
+
   const scrollToScenario = () => {
     const el = document.querySelector('#scenario');
     if (el) {
@@ -83,46 +181,27 @@ export default function App() {
     }
   };
 
-  if (initializing) {
-    return (
-      <div className="init-loading-splash">
-        <div className="splash-content-box">
-          <div className="splash-logo-mark">
-            <span className="logo-bar bar-1" />
-            <span className="logo-bar bar-2" />
-            <span className="logo-bar bar-3" />
-          </div>
-          <h2 className="splash-title">SamudraSetu</h2>
-          <div className="splash-spinner-ring" />
-          <p className="splash-status-text">
-            Connecting to FastAPI backend &amp; initializing PyTorch/XGBoost models...
-          </p>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="app-workspace-root">
+    <div className="app-workspace-root" ref={pageRef}>
       <Navigation onRunClick={scrollToScenario} loading={loading} />
 
       <main className="main-content-flow">
         {/* Platform Hero Banner */}
         <section className="platform-hero-header">
           <div className="hero-constrained-container">
-            <div className="hero-branding-tag">
+            <div className="hero-branding-tag" data-hero-reveal>
               <span className="tag-beacon-dot" />
               <span>Bulk Procurement Decision Intelligence</span>
             </div>
-            <h1 className="hero-primary-headline">
+            <h1 className="hero-primary-headline" data-hero-reveal>
               Maritime Freight Forecasting &amp; Chartering Decision Support
             </h1>
-            <p className="hero-body-lede">
+            <p className="hero-body-lede" data-hero-reveal>
               Evaluate dry-bulk coal procurement requirements through probabilistic forward projections,
               real port physical berth compliance, and cost-optimized charter structuring.
             </p>
 
-            <div className="hero-metrics-pill-cluster">
+            <div className="hero-metrics-pill-cluster" data-hero-reveal>
               <div className="metric-pill-item">
                 <strong>4 Committed ML Artifacts</strong>
                 <span>PyTorch LSTM &amp; XGBoost</span>
@@ -141,28 +220,21 @@ export default function App() {
           </div>
         </section>
 
-        {/* 1. Scenario Setup & Spatial Route Map */}
+        {/* 1. Scenario Setup & Spatial Route Map — Renders Immediately */}
         <div className="workspace-section-boundary">
           <div className="constrained-section-inner">
-            {config && requirement ? (
-              <ScenarioPanel
-                config={config}
-                requirement={requirement}
-                loading={loading}
-                error={error}
-                onRun={executePipeline}
-              />
-            ) : (
-              <div className="empty-state-notice">
-                <p>Failed to load scenario configuration. Please verify the backend is running.</p>
-                {error && <span className="error-detail-text">{error}</span>}
-              </div>
-            )}
+            <ScenarioPanel
+              config={config || { service_status: 'ready' }}
+              requirement={requirement}
+              loading={loading}
+              error={error}
+              onRun={executePipeline}
+            />
           </div>
         </div>
 
-        {/* Pipeline Execution Results Section */}
-        {result && (
+        {/* Results Pipeline Container */}
+        {result ? (
           <div className="results-pipeline-container">
             {/* 2. Executive Overview Strip */}
             <div className="workspace-section-boundary">
@@ -206,7 +278,9 @@ export default function App() {
               </div>
             </div>
           </div>
-        )}
+        ) : initialRunPending ? (
+          <AnalyticalResultsSkeleton />
+        ) : null}
       </main>
 
       <footer className="site-platform-footer">

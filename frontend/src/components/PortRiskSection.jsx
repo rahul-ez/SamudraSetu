@@ -11,7 +11,7 @@ export default function PortRiskSection({ result }) {
 
   return (
     <section className="port-risk-section-wrapper" id="risk">
-      <div className="section-title-bar">
+      <div className="section-title-bar" data-section-reveal>
         <div>
           <span className="section-eyebrow-tag">Port Operations &amp; Supply Chain Risk</span>
           <h2 className="section-heading-primary">Port Risk &amp; Congestion Assessment</h2>
@@ -23,7 +23,7 @@ export default function PortRiskSection({ result }) {
 
       <div className="risk-balanced-grid">
         {/* Left Column: Composite Risk Engine */}
-        <div className="risk-card-container">
+        <div className="risk-card-container" data-card-reveal>
           <div className="risk-card-header">
             <div>
               <span className="card-kicker-tag">Composite Risk Scoring</span>
@@ -81,7 +81,7 @@ export default function PortRiskSection({ result }) {
         </div>
 
         {/* Right Column: Destination Port Operational Analytics */}
-        <div className="risk-card-container">
+        <div className="risk-card-container" data-card-reveal>
           <div className="risk-card-header">
             <div>
               <span className="card-kicker-tag">
@@ -124,27 +124,14 @@ export default function PortRiskSection({ result }) {
                 </div>
               </div>
 
-              {/* Explicit Data & Model Disclosure Explaining the 0 Values */}
-              <div className="port-data-disclosure-card">
-                <div className="disclosure-heading">
-                  <svg viewBox="0 0 20 20" width="16" height="16" fill="currentColor">
-                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                  </svg>
-                  <span>Model Raw Output Transparency</span>
-                </div>
-                <p className="disclosure-text">
-                  The trained XGBoost regressor for Paradip predicted raw values of{' '}
-                  <strong>{portPrediction.raw_model_outputs?.congestion_index_0_100?.toFixed(3)}</strong> for congestion and{' '}
-                  <strong>{portPrediction.raw_model_outputs?.wait_hours?.toFixed(3)} hrs</strong> for vessel wait on the current cutoff feature row.
-                </p>
-                <p className="disclosure-text">
-                  By domain rule, wait times and congestion cannot be negative, so values are non-negatively clipped to{' '}
-                  <strong>0.0</strong>, indicating zero queue backlog and optimal turnaround conditions at the port.
-                </p>
-                <div className="disclosure-footer">
-                  <span>Artifact Data Cutoff: {portPrediction.data_cutoff}</span>
-                  <span>&middot;</span>
-                  <span>Scope: {portPrediction.scope?.destination}</span>
+              {/* Visually secondary model disclosure note */}
+              <div className="port-model-footnote">
+                <span className="footnote-icon">ℹ</span>
+                <div className="footnote-text">
+                  <strong>Model Output Disclosure:</strong> Trained XGBoost regressors predicted raw outputs of{' '}
+                  <code>{portPrediction.raw_model_outputs?.congestion_index_0_100?.toFixed(2)}</code> for congestion and{' '}
+                  <code>{portPrediction.raw_model_outputs?.wait_hours?.toFixed(2)} hrs</code> for wait time on the cutoff feature row.
+                  Values are non-negatively clipped to <code>0.0</code>, indicating free berth capacity and no waiting backlog at {request?.destination}.
                 </div>
               </div>
             </div>

@@ -81,10 +81,10 @@ export default function ScenarioPanel({
 
   return (
     <section className="scenario-workspace-section" id="scenario">
-      <div className="section-title-bar">
+      <div className="section-title-bar" data-section-reveal>
         <div>
           <span className="section-eyebrow-tag">Operational Parameters</span>
-          <h2 className="section-heading-primary">Scenario Setup & Spatial Routing</h2>
+          <h2 className="section-heading-primary">Scenario Setup &amp; Spatial Routing</h2>
         </div>
         <div className="status-indicator-badge">
           <span className="status-beacon-live" />
@@ -94,7 +94,7 @@ export default function ScenarioPanel({
 
       <div className="scenario-split-grid">
         {/* Left: Interactive Maritime Map */}
-        <div className="scenario-map-column">
+        <div className="scenario-map-column" data-card-reveal>
           <RouteMap
             origin={form.origin}
             destination={form.destination}
@@ -104,7 +104,7 @@ export default function ScenarioPanel({
         </div>
 
         {/* Right: Procurement Parameters Form */}
-        <div className="scenario-form-column">
+        <div className="scenario-form-column" data-card-reveal>
           <form className="scenario-config-form" onSubmit={handleSubmit}>
             <div className="form-section-header">
               <h3 className="form-block-title">Procurement Brief</h3>

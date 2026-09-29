@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { formatFeasibilityStatus } from '../utils/statusHelpers';
 
 export default function DecisionSection({ result, onRunAgain }) {
   const [reasonIndex, setReasonIndex] = useState(0);
@@ -19,9 +20,13 @@ export default function DecisionSection({ result, onRunAgain }) {
     if (reasons.length) setReasonIndex((prev) => (prev - 1 + reasons.length) % reasons.length);
   };
 
+  const feasInfo = formatFeasibilityStatus(
+    recommendation?.selected_feasibility || feasibility?.selected?.overall
+  );
+
   return (
     <section className="decision-section-wrapper" id="decision">
-      <div className="section-title-bar">
+      <div className="section-title-bar" data-section-reveal>
         <div>
           <span className="section-eyebrow-tag">Procurement Action</span>
           <h2 className="section-heading-primary">Chartering Decision &amp; Rationale</h2>
@@ -30,12 +35,14 @@ export default function DecisionSection({ result, onRunAgain }) {
           <span>{request?.origin} &rarr; {request?.destination}</span>
           <span>&middot;</span>
           <span>{request?.vessel_class}</span>
+          <span>&middot;</span>
+          <span>{Number(request?.cargo_quantity_mt || 0).toLocaleString()} MT</span>
         </div>
       </div>
 
       <div className="decision-split-grid">
         {/* Left Column: Recommendation Verdict & Rationale */}
-        <div className="decision-card-container highlight-verdict-card">
+        <div className="decision-card-container highlight-verdict-card" data-card-reveal>
           <div className="verdict-banner-row">
             <span className="verdict-kicker">Recommended Action</span>
             <div className={`verdict-stamp ${isCharterNow ? 'stamp-charter' : 'stamp-wait'}`}>
@@ -52,13 +59,13 @@ export default function DecisionSection({ result, onRunAgain }) {
             <div className="decision-badge-tile">
               <span className="badge-caption">Risk Assessment:</span>
               <strong className={`badge-state-text state-${recommendation?.risk_level?.toLowerCase() || 'medium'}`}>
-                {recommendation?.risk_level || 'Medium'}
+                {recommendation?.risk_level || 'Medium'} Risk
               </strong>
             </div>
             <div className="decision-badge-tile">
               <span className="badge-caption">Vessel Port Fit:</span>
-              <strong className="badge-state-text state-pass">
-                {recommendation?.selected_feasibility || feasibility?.selected?.overall || 'Compatible'}
+              <strong className={`badge-state-text ${feasInfo.stateTextClass}`}>
+                {feasInfo.summaryText}
               </strong>
             </div>
           </div>
@@ -95,7 +102,7 @@ export default function DecisionSection({ result, onRunAgain }) {
         </div>
 
         {/* Right Column: Scenario Synthesis & Actions */}
-        <div className="decision-card-container">
+        <div className="decision-card-container" data-card-reveal>
           <div className="verdict-banner-row">
             <span className="verdict-kicker">Scenario Synthesis</span>
             <span className="parameters-caption">Validated Pipeline Metrics</span>

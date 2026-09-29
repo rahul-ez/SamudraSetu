@@ -1,7 +1,9 @@
+import { formatFeasibilityStatus } from '../utils/statusHelpers';
+
 export default function ExecutiveStrip({ result }) {
   if (!result) return null;
 
-  const { forecast, recommendation, feasibility, risk, request } = result;
+  const { forecast, feasibility, risk, request } = result;
   const portPrediction = risk?.port_model_prediction;
 
   const currentRate = forecast?.current_rate_usd_per_mt ?? 0;
@@ -22,14 +24,14 @@ export default function ExecutiveStrip({ result }) {
     ? portPrediction.wait_hours
     : null;
 
-  const overallFeasibility = feasibility?.selected?.overall || 'unknown';
+  const feasInfo = formatFeasibilityStatus(feasibility?.selected?.overall);
 
   return (
     <section className="executive-strip-container" id="overview">
-      <div className="section-title-bar">
+      <div className="section-title-bar" data-section-reveal>
         <div>
           <span className="section-eyebrow-tag">Executive Summary</span>
-          <h2 className="section-heading-primary">Key Operational & Market Metrics</h2>
+          <h2 className="section-heading-primary">Key Operational &amp; Market Metrics</h2>
         </div>
         <div className="scenario-summary-pill">
           <span>{request?.origin} &rarr; {request?.destination}</span>
@@ -42,7 +44,7 @@ export default function ExecutiveStrip({ result }) {
 
       <div className="metrics-strip-grid">
         {/* Metric 1: Current Rate */}
-        <div className="metric-strip-card">
+        <div className="metric-strip-card" data-card-reveal>
           <div className="metric-card-label">Current Spot Rate</div>
           <div className="metric-primary-value">
             ${currentRate.toFixed(2)}
@@ -54,7 +56,7 @@ export default function ExecutiveStrip({ result }) {
         </div>
 
         {/* Metric 2: P50 Forecast */}
-        <div className="metric-strip-card">
+        <div className="metric-strip-card" data-card-reveal>
           <div className="metric-card-label">P50 Forecast ({horizon}d Horizon)</div>
           <div className="metric-primary-value">
             ${p50.toFixed(2)}
@@ -67,7 +69,7 @@ export default function ExecutiveStrip({ result }) {
         </div>
 
         {/* Metric 3: Probability of Increase */}
-        <div className="metric-strip-card">
+        <div className="metric-strip-card" data-card-reveal>
           <div className="metric-card-label">Rate Upside Probability</div>
           <div className="metric-primary-value">
             {Math.round(probIncrease * 100)}%
@@ -84,7 +86,7 @@ export default function ExecutiveStrip({ result }) {
         </div>
 
         {/* Metric 4: Port Congestion */}
-        <div className="metric-strip-card">
+        <div className="metric-strip-card" data-card-reveal>
           <div className="metric-card-label">
             Port Congestion ({request?.destination})
           </div>
@@ -110,7 +112,7 @@ export default function ExecutiveStrip({ result }) {
         </div>
 
         {/* Metric 5: Vessel Wait Time */}
-        <div className="metric-strip-card">
+        <div className="metric-strip-card" data-card-reveal>
           <div className="metric-card-label">Estimated Vessel Wait</div>
           <div className="metric-primary-value">
             {isPortML ? (
@@ -134,7 +136,7 @@ export default function ExecutiveStrip({ result }) {
         </div>
 
         {/* Metric 6: Composite Risk */}
-        <div className="metric-strip-card">
+        <div className="metric-strip-card" data-card-reveal>
           <div className="metric-card-label">Composite Risk Index</div>
           <div className="metric-primary-value">
             {risk?.total_score ?? '—'}
@@ -146,13 +148,13 @@ export default function ExecutiveStrip({ result }) {
         </div>
 
         {/* Metric 7: Port Feasibility */}
-        <div className="metric-strip-card">
+        <div className="metric-strip-card" data-card-reveal>
           <div className="metric-card-label">Port Fit ({request?.vessel_class})</div>
           <div className="metric-primary-value" style={{ fontSize: '1.25rem' }}>
             {request?.destination}
           </div>
-          <div className={`feasibility-badge feas-${overallFeasibility}`}>
-            {overallFeasibility === 'pass' ? '✓ Feasible' : overallFeasibility === 'fail' ? '✗ Draft/LOA Exceeded' : '? Conditional'}
+          <div className={`feasibility-badge ${feasInfo.badgeClass}`}>
+            {feasInfo.label}
           </div>
         </div>
       </div>
