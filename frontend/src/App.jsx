@@ -32,7 +32,11 @@ function AnalyticalResultsSkeleton() {
     <div className="skeleton-analytical-wrapper">
       <div className="workspace-section-boundary">
         <div className="constrained-section-inner">
-          <div className="skeleton-card skeleton-metrics-strip" />
+          <div className="skeleton-status-indicator">
+            <span className="loading-spinner-ring" style={{ width: 14, height: 14, borderWidth: 2 }} />
+            <span>Calculating probabilistic forward rates, port risk &amp; charter economics...</span>
+          </div>
+          <div className="skeleton-card skeleton-metrics-strip" style={{ marginTop: 12 }} />
         </div>
       </div>
       <div className="workspace-section-boundary">
@@ -56,14 +60,12 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [initialRunPending, setInitialRunPending] = useState(true);
 
-  // Prevent duplicate execution from React StrictMode mounting twice in dev
-  const hasInitializedRef = useRef(false);
-
   const executePipeline = useCallback(async (nextRequirement) => {
     setRequirement(nextRequirement);
     setLoading(true);
     setError('');
     try {
+      console.log('[SamudraSetu] Running pipeline for:', nextRequirement);
       const pipelineOutput = await runPipeline(nextRequirement);
       setResult(pipelineOutput);
       // Smooth scroll to executive overview upon manual rerun
@@ -74,6 +76,7 @@ export default function App() {
         }
       }, 150);
     } catch (err) {
+      console.error('[SamudraSetu] Pipeline run error:', err);
       setError(err instanceof Error ? err.message : 'The decision pipeline encountered an error.');
     } finally {
       setLoading(false);
@@ -82,38 +85,40 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (hasInitializedRef.current) return;
-    hasInitializedRef.current = true;
+    let active = true;
 
-    let isMounted = true;
-
-    // Load config and execute initial baseline concurrently
-    getPipelineConfig()
-      .then((cfg) => {
-        if (!isMounted) return;
+    async function initializeDashboard() {
+      try {
+        console.log('[SamudraSetu] Fetching pipeline configuration...');
+        const cfg = await getPipelineConfig();
+        if (!active) return;
         setConfig(cfg);
+
         const req = cfg.default_requirement || DEFAULT_SCENARIO;
         setRequirement(req);
-        return runPipeline(req);
-      })
-      .then((res) => {
-        if (isMounted && res) {
-          setResult(res);
-        }
-      })
-      .catch((err) => {
-        if (isMounted) {
+
+        console.log('[SamudraSetu] Executing initial baseline pipeline for:', req.origin, '->', req.destination);
+        const res = await runPipeline(req);
+        if (!active) return;
+
+        console.log('[SamudraSetu] Initial pipeline result received successfully.');
+        setResult(res);
+      } catch (err) {
+        console.error('[SamudraSetu] Pipeline initialization error:', err);
+        if (active) {
           setError(err instanceof Error ? err.message : 'Backend connection failed.');
         }
-      })
-      .finally(() => {
-        if (isMounted) {
+      } finally {
+        if (active) {
           setInitialRunPending(false);
         }
-      });
+      }
+    }
+
+    initializeDashboard();
 
     return () => {
-      isMounted = false;
+      active = false;
     };
   }, []);
 
@@ -121,13 +126,17 @@ export default function App() {
   useGSAP(() => {
     const mm = gsap.matchMedia();
     mm.add('(prefers-reduced-motion: no-preference)', () => {
-      gsap.from('[data-hero-reveal]', {
-        y: 18,
-        opacity: 0,
-        duration: 0.6,
-        stagger: 0.08,
-        ease: 'power2.out',
-      });
+      gsap.fromTo(
+        '[data-hero-reveal]',
+        { y: 16, opacity: 0 },
+        {
+          y: 0,
+          opacity: 1,
+          duration: 0.6,
+          stagger: 0.08,
+          ease: 'power2.out',
+        }
+      );
     });
     return () => mm.revert();
   }, { scope: pageRef });
@@ -138,37 +147,48 @@ export default function App() {
 
     const mm = gsap.matchMedia();
     mm.add('(prefers-reduced-motion: no-preference)', () => {
-      // Refresh ScrollTrigger after DOM renders new result sections
-      ScrollTrigger.refresh();
+      const timer = setTimeout(() => {
+        ScrollTrigger.refresh();
 
-      gsap.utils.toArray('[data-section-reveal]').forEach((el) => {
-        gsap.from(el, {
-          y: 20,
-          opacity: 0,
-          duration: 0.5,
-          ease: 'power2.out',
-          scrollTrigger: {
-            trigger: el,
-            start: 'top 88%',
-            once: true,
-          },
+        gsap.utils.toArray('[data-section-reveal]').forEach((el) => {
+          gsap.fromTo(
+            el,
+            { y: 16, opacity: 0 },
+            {
+              y: 0,
+              opacity: 1,
+              duration: 0.5,
+              ease: 'power2.out',
+              scrollTrigger: {
+                trigger: el,
+                start: 'top 92%',
+                once: true,
+              },
+            }
+          );
         });
-      });
 
-      gsap.utils.toArray('[data-card-reveal]').forEach((el) => {
-        gsap.from(el, {
-          y: 18,
-          opacity: 0,
-          duration: 0.5,
-          stagger: 0.06,
-          ease: 'power2.out',
-          scrollTrigger: {
-            trigger: el,
-            start: 'top 88%',
-            once: true,
-          },
+        gsap.utils.toArray('[data-card-reveal]').forEach((el) => {
+          gsap.fromTo(
+            el,
+            { y: 14, opacity: 0 },
+            {
+              y: 0,
+              opacity: 1,
+              duration: 0.45,
+              stagger: 0.05,
+              ease: 'power2.out',
+              scrollTrigger: {
+                trigger: el,
+                start: 'top 92%',
+                once: true,
+              },
+            }
+          );
         });
-      });
+      }, 150);
+
+      return () => clearTimeout(timer);
     });
 
     return () => mm.revert();
@@ -280,6 +300,23 @@ export default function App() {
           </div>
         ) : initialRunPending ? (
           <AnalyticalResultsSkeleton />
+        ) : error ? (
+          <div className="workspace-section-boundary">
+            <div className="constrained-section-inner">
+              <div className="form-validation-alert" style={{ margin: '24px 0', padding: '18px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div>
+                  <strong>Analysis Pipeline Error:</strong> {error}
+                </div>
+                <button
+                  type="button"
+                  className="btn-header-action"
+                  onClick={() => executePipeline(requirement)}
+                >
+                  Retry Analysis
+                </button>
+              </div>
+            </div>
+          </div>
         ) : null}
       </main>
 
