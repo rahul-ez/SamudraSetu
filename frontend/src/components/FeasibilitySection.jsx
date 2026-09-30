@@ -53,6 +53,9 @@ export default function FeasibilitySection({ result }) {
     return `$${Number(val).toFixed(0)}`;
   };
 
+  const selectedFeasibility = feasibility?.selected?.overall;
+  const isSelectedFail = selectedFeasibility === 'fail';
+
   return (
     <section className="feasibility-section-wrapper" id="feasibility">
       <div className="section-title-bar" data-section-reveal>
@@ -60,12 +63,37 @@ export default function FeasibilitySection({ result }) {
           <span className="section-eyebrow-tag">Navigational Constraints &amp; Economics</span>
           <h2 className="section-heading-primary">Port Physical Fit &amp; Contract Economics</h2>
         </div>
-        <div className="port-context-badge">
-          <span>Destination Port: <strong>{feasibility?.port}</strong></span>
-          <span>&middot;</span>
-          <span>Requirement: <strong>{Number(request?.cargo_quantity_mt || 0).toLocaleString()} MT</strong></span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          {isSelectedFail && (
+            <span className="feas-fail-badge-large" role="status">
+              <span aria-hidden="true">⊘</span> Physical Limits Exceeded
+            </span>
+          )}
+          <div className="port-context-badge">
+            <span>Destination Port: <strong>{feasibility?.port}</strong></span>
+            <span>&middot;</span>
+            <span>Requirement: <strong>{Number(request?.cargo_quantity_mt || 0).toLocaleString()} MT</strong></span>
+          </div>
         </div>
       </div>
+
+      {/* Infeasibility summary banner — surfaces the first failing constraint for the selected vessel */}
+      {isSelectedFail && (() => {
+        const selectedCandidate = candidates.find((c) => c.vessel_class === selectedVessel);
+        const failedChecks = selectedCandidate?.checks.filter((c) => c.status === 'fail') || [];
+        return failedChecks.length > 0 ? (
+          <div className="feas-fail-summary-banner" role="alert" data-card-reveal>
+            <strong>Berth constraint{failedChecks.length > 1 ? 's' : ''} exceeded — {request?.vessel_class} cannot discharge at {feasibility?.port}</strong>
+            <ul className="feas-fail-list">
+              {failedChecks.map((fc) => (
+                <li key={fc.constraint}>
+                  <strong>{fc.constraint}:</strong> vessel {fc.vessel_value}{fc.constraint === 'DWT' ? ' DWT' : ' m'} exceeds port limit of {fc.port_limit != null ? `${fc.port_limit}${fc.constraint === 'DWT' ? ' DWT' : ' m'}` : 'not published'}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null;
+      })()}
 
       <div className="feasibility-equal-grid">
         {/* Left Column: Physical Port Compatibility Table */}

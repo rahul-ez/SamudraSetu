@@ -26,7 +26,25 @@ const DEFAULT_SCENARIO = {
   availability_level: 'Medium',
 };
 
-// Localized analytical skeleton state displayed while initial pipeline completes
+// Deep equality check for scenario comparison
+function scenariosEqual(a, b) {
+  if (!a || !b) return false;
+  const keys = [
+    'origin', 'destination', 'vessel_class', 'cargo_type',
+    'cargo_quantity_mt', 'horizon_days', 'congestion_level', 'availability_level',
+  ];
+  return keys.every((k) => String(a[k]) === String(b[k]));
+}
+
+// Vessel DWT capacity caps for validation
+const VESSEL_MAX_DWT = {
+  Handysize: 40000,
+  Supramax: 60000,
+  Panamax: 80000,
+  Capesize: 180000,
+};
+
+// Analytical skeleton displayed while the initial pipeline run is pending
 function AnalyticalResultsSkeleton() {
   return (
     <div className="skeleton-analytical-wrapper">
@@ -51,14 +69,85 @@ function AnalyticalResultsSkeleton() {
   );
 }
 
+// Pre-run empty state shown before any analysis is completed
+function PreRunEmptyState({ onRunClick }) {
+  return (
+    <div className="workspace-section-boundary">
+      <div className="constrained-section-inner">
+        <div className="pre-run-empty-state" role="status">
+          <div className="pre-run-icon" aria-hidden="true">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 2L2 7l10 5 10-5-10-5z" />
+              <path d="M2 17l10 5 10-5" />
+              <path d="M2 12l10 5 10-5" />
+            </svg>
+          </div>
+          <h3 className="pre-run-heading">Run a scenario to see your analysis</h3>
+          <p className="pre-run-body">
+            Configure your origin, destination port, vessel class and cargo quantity above,
+            then run the pipeline to see your freight forecast, port risk assessment,
+            navigational feasibility and chartering recommendation.
+          </p>
+          <button type="button" className="btn-pre-run-action" onClick={onRunClick}>
+            Configure &amp; Run Scenario
+            <svg viewBox="0 0 20 20" width="14" height="14" fill="currentColor" aria-hidden="true">
+              <path fillRule="evenodd" d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z" clipRule="evenodd" />
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Stale results banner shown when inputs differ from the analysed scenario
+function StaleResultsBanner({ resultScenario, onRerun, loading }) {
+  return (
+    <div className="stale-results-banner" role="alert" aria-live="polite">
+      <div className="stale-banner-left">
+        <span className="stale-icon" aria-hidden="true">⚠</span>
+        <div>
+          <strong className="stale-heading">Inputs changed — results shown are for the previous scenario.</strong>
+          <span className="stale-scenario-recap">
+            {resultScenario.origin} → {resultScenario.destination} · {resultScenario.vessel_class} · {Number(resultScenario.cargo_quantity_mt).toLocaleString()} MT · {resultScenario.horizon_days}d
+          </span>
+        </div>
+      </div>
+      <button
+        type="button"
+        className="btn-stale-rerun"
+        onClick={onRerun}
+        disabled={loading}
+      >
+        {loading ? <><span className="loading-spinner-ring" style={{ width: 14, height: 14, borderWidth: 2 }} /><span>Running...</span></> : 'Re-run Analysis'}
+      </button>
+    </div>
+  );
+}
+
 export default function App() {
   const pageRef = useRef(null);
   const [config, setConfig] = useState(null);
   const [requirement, setRequirement] = useState(DEFAULT_SCENARIO);
   const [result, setResult] = useState(null);
+  const [resultScenario, setResultScenario] = useState(null); // the scenario that produced the current result
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [initialRunPending, setInitialRunPending] = useState(true);
+
+  // Derive analysis status
+  const isStale = result !== null && resultScenario !== null && !scenariosEqual(requirement, resultScenario);
+
+  // Input validation: cargo quantity vs vessel DWT
+  const vesselMax = VESSEL_MAX_DWT[requirement.vessel_class] ?? 180000;
+  const cargoOverCapacity = requirement.cargo_quantity_mt > vesselMax;
+  const cargoInvalid = !requirement.cargo_quantity_mt || requirement.cargo_quantity_mt <= 0;
+  const hasValidationError = cargoOverCapacity || cargoInvalid;
+  const validationMessage = cargoInvalid
+    ? 'Cargo quantity must be greater than zero.'
+    : cargoOverCapacity
+    ? `Cargo (${Number(requirement.cargo_quantity_mt).toLocaleString()} MT) exceeds the rated capacity of a ${requirement.vessel_class} (${Number(vesselMax).toLocaleString()} DWT). Choose a larger vessel or reduce cargo.`
+    : null;
 
   const executePipeline = useCallback(async (nextRequirement) => {
     setRequirement(nextRequirement);
@@ -68,6 +157,7 @@ export default function App() {
       console.log('[SamudraSetu] Running pipeline for:', nextRequirement);
       const pipelineOutput = await runPipeline(nextRequirement);
       setResult(pipelineOutput);
+      setResultScenario({ ...nextRequirement });
       // Smooth scroll to executive overview upon manual rerun
       setTimeout(() => {
         const overviewEl = document.querySelector('#overview');
@@ -83,6 +173,11 @@ export default function App() {
       setInitialRunPending(false);
     }
   }, []);
+
+  // Re-run with the current form values (for stale banner)
+  const rerunWithCurrentInputs = useCallback(() => {
+    executePipeline(requirement);
+  }, [executePipeline, requirement]);
 
   useEffect(() => {
     let active = true;
@@ -103,6 +198,7 @@ export default function App() {
 
         console.log('[SamudraSetu] Initial pipeline result received successfully.');
         setResult(res);
+        setResultScenario({ ...req });
       } catch (err) {
         console.error('[SamudraSetu] Pipeline initialization error:', err);
         if (active) {
@@ -201,9 +297,24 @@ export default function App() {
     }
   };
 
+  // Determine the overall analysis status label for the nav
+  const analysisStatus = loading
+    ? 'running'
+    : error
+    ? 'failed'
+    : result && isStale
+    ? 'stale'
+    : result
+    ? 'current'
+    : 'idle';
+
   return (
     <div className="app-workspace-root" ref={pageRef}>
-      <Navigation onRunClick={scrollToScenario} loading={loading} />
+      <Navigation
+        onRunClick={scrollToScenario}
+        loading={loading}
+        analysisStatus={analysisStatus}
+      />
 
       <main className="main-content-flow">
         {/* Platform Hero Banner */}
@@ -249,6 +360,9 @@ export default function App() {
               loading={loading}
               error={error}
               onRun={executePipeline}
+              onRequirementChange={setRequirement}
+              validationMessage={validationMessage}
+              hasValidationError={hasValidationError}
             />
           </div>
         </div>
@@ -256,10 +370,23 @@ export default function App() {
         {/* Results Pipeline Container */}
         {result ? (
           <div className="results-pipeline-container">
+            {/* Stale Results Banner — shown when inputs have changed after a successful run */}
+            {isStale && (
+              <div className="workspace-section-boundary" style={{ paddingTop: 0, paddingBottom: 0 }}>
+                <div className="constrained-section-inner">
+                  <StaleResultsBanner
+                    resultScenario={resultScenario}
+                    onRerun={rerunWithCurrentInputs}
+                    loading={loading}
+                  />
+                </div>
+              </div>
+            )}
+
             {/* 2. Executive Overview Strip */}
             <div className="workspace-section-boundary">
               <div className="constrained-section-inner">
-                <ExecutiveStrip result={result} />
+                <ExecutiveStrip result={result} isStale={isStale} />
               </div>
             </div>
 
@@ -287,7 +414,7 @@ export default function App() {
             {/* 6. Chartering Recommendation Verdict */}
             <div className="workspace-section-boundary">
               <div className="constrained-section-inner">
-                <DecisionSection result={result} onRunAgain={scrollToScenario} />
+                <DecisionSection result={result} onRunAgain={scrollToScenario} isStale={isStale} />
               </div>
             </div>
 
@@ -317,7 +444,9 @@ export default function App() {
               </div>
             </div>
           </div>
-        ) : null}
+        ) : (
+          <PreRunEmptyState onRunClick={scrollToScenario} />
+        )}
       </main>
 
       <footer className="site-platform-footer">
